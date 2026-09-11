@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Crawl provincial budget data from CKNS.
+#   ./nsnn                        all 34 provinces, 5 at a time
+#   ./nsnn "Bắc Ninh" "Hưng Yên"  just these
+#   ./nsnn --jobs 3               change the batch size
+#   ./nsnn --list | --status
+cd "$(dirname "$0")" || exit 1
+exec .venv/bin/python pipeline/run.py "$@"
