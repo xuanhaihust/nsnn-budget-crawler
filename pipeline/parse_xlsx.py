@@ -10,8 +10,22 @@ from parse_xml import norm_num, unit_factor, clean_unit
 
 N = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
 
+ZIP_MAGIC = b'PK\x03\x04'
+
+def is_xlsx_zip(path: pathlib.Path):
+    """Sniff the magic bytes, do not use zipfile.is_zipfile.
+
+    is_zipfile scans the whole file for an end-of-central-directory record, so a real
+    BIFF .xls that embeds an OOXML drawing part (drs/connectorxml.xml and friends) is
+    reported as a zip. The xlsx branch then finds no xl/worksheets/sheet*.xml, yields
+    no sheets, and the report is silently dropped with no exception to record. Seen on
+    TT343 forms B41/B45 across several provinces and years.
+    """
+    with open(path, 'rb') as fh:
+        return fh.read(4) == ZIP_MAGIC
+
 def sheet_rows(path: pathlib.Path):
-    if not zipfile.is_zipfile(path):          # true legacy BIFF .xls
+    if not is_xlsx_zip(path):                 # true legacy BIFF .xls
         import xlrd
         bk = xlrd.open_workbook(str(path), formatting_info=False)
         for sh in bk.sheets():
