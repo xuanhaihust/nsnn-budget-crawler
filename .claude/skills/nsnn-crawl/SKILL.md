@@ -17,7 +17,7 @@ cd <project root>
 ./nsnn                     # no argument means all 34, 5 in parallel
 ```
 
-Writes `output/<Province>_budget_CKNS_<date>.xlsx`. Takes about 5 minutes on a cold run and
+Writes `output/<Province>_budget_CKNS_<date>.xlsx`. Takes about 1-3 minutes on a cold run and
 seconds on a rebuild, because downloads are cached in `work/<Province>/raw/`.
 
 Use `.venv/bin/python`, never `python3` — the system Python lacks `xlrd` and `openpyxl`.
@@ -32,7 +32,7 @@ Other entry points:
 
 The runner batches 5 provinces at a time in separate processes, prints one line per province
 as it finishes, and collects failures instead of stopping. Two concurrent provinces measured
-0 download failures. All 34 takes roughly 45-60 minutes — run it in the background and report
+0 download failures. All 34 takes roughly 15-25 minutes — run it in the background and report
 progress as it lands; do not block on it.
 
 ## Before you report a result

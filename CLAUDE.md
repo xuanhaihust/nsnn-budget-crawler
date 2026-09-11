@@ -12,14 +12,15 @@ cd <project root>
 ./nsnn --status                 # what is built, what remains
 ./nsnn --jobs 3                 # smaller batch
 ./nsnn --list                   # every CKNS department + id
+./nsnn --with-pdf               # also store PDF/DOC (for a future OCR pass)
 ```
 
 No province argument means all 34. Provinces run in separate processes; each writes only to
-its own `work/<slug>/` and its own output file, so a batch cannot collide. Two concurrent
-provinces were measured with **0 download failures**, so 5 is safe; drop to `--jobs 3` if the
-server starts refusing.
+its own `work/<slug>/` and its own output file, so a batch cannot collide. Three concurrent
+provinces at 16 threads each (48 connections) were measured with **0 download failures**;
+drop to `--jobs 3` if the server starts refusing.
 
-One province takes about 5 minutes and writes
+One province takes about 1–3 minutes and writes
 `output/<Province>_budget_CKNS_<date>.xlsx`. Re-running is safe and cheap: downloads are
 cached by path, so a rebuild after a parser change takes seconds. Always use `.venv/bin/python`
 — the system Python is externally managed and has neither `xlrd` nor `openpyxl`.
@@ -34,7 +35,7 @@ cached by path, so a rebuild after a parser change takes seconds. Always use `.v
 | `pipeline/` | The code. `./nsnn` in the project root is the only entry point you need. |
 
 `work/raw/` is the evidence trail: every row traces back to a stored file with a SHA-256.
-Do not delete it — a province is ~200–600 MB.
+Do not delete it — a province is ~10–250 MB (it was ~900 MB before PDFs were skipped).
 
 ## Data source
 
@@ -48,8 +49,9 @@ POST https://ckns.mof.gov.vn/_vti_bin/DeptService.svc/SearchReport
 ```
 
 About 20,000 reports across all provinces. Each record carries the province, title, form
-code, period, circular, approval date, and **direct attachment URLs**. Roughly 57% of
-attachments are machine-readable (XML, xlsx, xls), so most data needs no OCR.
+code, period, circular, approval date, and **direct attachment URLs**. Measured across all
+34 provinces, 55% of attachments are machine-readable (XML, xlsx, xls), so most data needs
+no OCR. The rest is PDF/DOC, which the pipeline does not download by default — see below.
 
 The richest format is the Circular 343 **XML**: it is self-describing (`code`, `circular`,
 `department`, `curencyunit`, `year`, `periodType`, header labels, rows) and maps almost
@@ -81,6 +83,17 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
 
 ## Gotchas already found and fixed — do not rediscover these
 
+- **PDF/DOC are not downloaded by default.** `build.py` only ever parsed xml/xls/xlsx. On
+  Hưng Yên the 258 PDF/DOC attachments were **98.4% of the bytes (889 of 903 MB) and produced
+  zero rows**; fetching them cost 483s of a 524s run. Skipping them took the province to 70s
+  with a byte-identical 82,220-row result. 235 of those 258 files belonged to reports that
+  also published XML/XLSX, so they were pure duplication. The other 23 (12 reports) are
+  scanned images with a poor OCR layer — a 42-page decision yielded 2,139 digits in total —
+  so their tables cannot be read without real OCR, and guessing at them would break the
+  "never infer a value" rule. Use `--with-pdf` when the OCR pass gets built.
+- **`Pending_Review` is built from `catalog.json`, not from what was downloaded.** Otherwise
+  a report whose only attachment is a PDF vanishes from the workbook entirely. Across 34
+  provinces about 5.6% of reports publish nothing but PDF/DOC (0% in Tây Ninh, 16% in Lào Cai).
 - **Page size above ~50 breaks paging.** `PageSize=200` silently returns 28 rows and then
   empty pages. `PAGE = 50` in `ckns.py`.
 - **Every query stops ~50 records short of the server's own `TotalItems`.** Hà Nội returns 178

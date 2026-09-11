@@ -18,10 +18,13 @@ def build(province, workdir):
     by_report = collections.defaultdict(list)
     for f in files: by_report[f['report_id']].append(f)
 
+    # Walk the catalog, not the downloads: harvest skips PDF/DOC, and a report whose only
+    # attachment is a PDF must still reach Pending_Review instead of silently vanishing.
     rows, status = [], {}
-    for rid, fs in by_report.items():
-        rec = cat.get(rid)
-        if not rec: continue
+    for rid, rec in cat.items():
+        atts = rec.get('Attachments') or []
+        if not atts: continue
+        fs = by_report.get(rid, [])
         xml = [f for f in fs if f['filename'].lower().endswith('.xml')]
         sheets = [f for f in fs if f['filename'].lower().endswith(('.xls', '.xlsx'))]
         got, how, err = 0, '', ''
@@ -36,12 +39,15 @@ def build(province, workdir):
                     r = list(parse_xlsx.rows_from(out / f['path'], rec, province))
                     rows += r; got += len(r); how = 'XLSX'
                 except Exception as e: err = f"{type(e).__name__}: {e}"
+        # formats come from the catalog, so Pending_Review reports every format the province
+        # published for this report - including the ones harvest deliberately did not fetch
+        exts = sorted({a['FileName'].rsplit('.', 1)[-1].lower()
+                       for a in atts if '.' in a['FileName']})
         if not got:
-            exts = sorted({f['filename'].rsplit('.', 1)[-1].lower() for f in fs})
             how = 'PENDING_PDF_DOC' if exts and not ({'xls','xlsx','xml'} & set(exts)) else 'PARSE_FAILED'
         status[rid] = dict(rows=got, method=how, err=err,
                            title=rec.get('Title',''), year=rec.get('YearTextMonthOrPeriod',''),
-                           exts=sorted({f['filename'].rsplit('.',1)[-1].lower() for f in fs}))
+                           exts=exts)
 
     # dedupe: exact first, then logical (same key + same raw value)
     seen, exact = set(), 0
