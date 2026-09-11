@@ -1,8 +1,9 @@
 # downloaded source files + catalogs — several GB, reproducible with ./nsnn
 work/
 
-# generated workbooks — reproducible, and they change on every run
-output/
+# output/ is committed: the workbooks are tracked through Git LFS (see .gitattributes).
+# Filenames carry the run date, so a re-run adds a new set rather than replacing the old
+# one — prune old dates before committing if the LFS quota matters.
 
 # python
 .venv/
