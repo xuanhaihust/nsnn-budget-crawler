@@ -1,4 +1,12 @@
-"""Download every CKNS attachment for one province into work/<slug>/raw."""
+"""Download the CKNS attachments for one province into work/<slug>/raw.
+
+Only machine-readable formats are fetched by default. PDF/DOC attachments are never
+parsed by build.py, and on a measured province they were 98% of the bytes but produced
+zero rows, so fetching them cost ~8x the wall clock for nothing. Pass with_pdf=True to
+store them anyway (an OCR pass would need them). Reports whose only attachment is a
+PDF/DOC still appear in Pending_Review - build.py reads the format list from
+catalog.json, not from what was downloaded.
+"""
 import sys, json, pathlib, unicodedata, re, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -9,18 +17,26 @@ def slug(s):
     s = ''.join(c for c in s if unicodedata.category(c) != 'Mn').replace('đ','d').replace('Đ','D')
     return re.sub(r'[^A-Za-z0-9]+', '_', s).strip('_')
 
-def run(province, dept_id, root=pathlib.Path('work')):
+PARSEABLE = ('.xml', '.xls', '.xlsx')
+THREADS = 16  # 8 -> 16 nearly halved download time; 32 only added latency
+
+
+def run(province, dept_id, root=pathlib.Path('work'), with_pdf=False, threads=THREADS):
     out = root / slug(province)
     raw = out / 'raw'; raw.mkdir(parents=True, exist_ok=True)
     items, total = ckns.catalog(dept_id)
     print(f"{province}: {len(items)} reports (server claims {total})")
 
-    jobs = []
+    jobs, skipped = [], 0
     for it in items:
         rid = it.get('ID')
         for a in it.get('Attachments') or []:
-            jobs.append((rid, a['FileName'], a['Url']))
-    print(f"attachments: {len(jobs)}")
+            if with_pdf or a['FileName'].lower().endswith(PARSEABLE):
+                jobs.append((rid, a['FileName'], a['Url']))
+            else:
+                skipped += 1
+    print(f"attachments: {len(jobs)} to fetch"
+          + (f", {skipped} skipped (not machine-readable)" if skipped else ""))
 
     recs, fail = [], []
     def one(j):
@@ -31,7 +47,7 @@ def run(province, dept_id, root=pathlib.Path('work')):
                     path=str(dest.relative_to(out)), sha256=h, bytes=n)
 
     t = time.time()
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    with ThreadPoolExecutor(max_workers=threads) as ex:
         futs = {ex.submit(one, j): j for j in jobs}
         for f in as_completed(futs):
             try: recs.append(f.result())
@@ -44,4 +60,4 @@ def run(province, dept_id, root=pathlib.Path('work')):
     return out, recs, fail
 
 if __name__ == '__main__':
-    run(sys.argv[1], int(sys.argv[2]))
+    run(sys.argv[1], int(sys.argv[2]), with_pdf='--with-pdf' in sys.argv)

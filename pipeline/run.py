@@ -3,11 +3,16 @@
     ./nsnn                          all 34 provinces, 5 at a time
     ./nsnn "Bắc Ninh" "Hưng Yên"    just these
     ./nsnn --jobs 3 --all           override the batch size
+    ./nsnn --with-pdf "Hà Nội"      also store PDF/DOC (never parsed; for a future OCR pass)
     ./nsnn --list                   every CKNS department name and id
     ./nsnn --status                 what is already built
 
 Provinces run in separate processes. Each writes only to its own work/<slug>/ and its own
-output file, so batches never collide. Downloads inside one province already use 8 threads.
+output file, so batches never collide. Downloads inside one province use 16 threads.
+
+By default only machine-readable attachments (xml/xls/xlsx) are fetched - PDF/DOC are
+never parsed and were 98% of the bytes. Reports that publish nothing else still appear in
+Pending_Review. --with-pdf restores the old behaviour.
 """
 import sys, pathlib, datetime, unicodedata, difflib, time, traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -44,11 +49,11 @@ def provinces34():
     return [l.strip() for l in LIST.read_text().splitlines() if l.strip()]
 
 
-def work_one(title, dept_id):
+def work_one(title, dept_id, with_pdf=False):
     """Runs in its own process. Returns a summary dict; never raises past the caller."""
     t0 = time.time()
     try:
-        harvest.run(title, dept_id, WORK)
+        harvest.run(title, dept_id, WORK, with_pdf=with_pdf)
         OUT.mkdir(exist_ok=True)
         dest = OUT / f"{harvest.slug(title)}_budget_CKNS_{datetime.date.today():%Y-%m-%d}.xlsx"
         final, status, stats = build.build(title, WORK / harvest.slug(title))
@@ -62,7 +67,7 @@ def work_one(title, dept_id):
                     tb=traceback.format_exc()[-400:], secs=round(time.time() - t0))
 
 
-def run(names, jobs=JOBS):
+def run(names, jobs=JOBS, with_pdf=False):
     deps = ckns.departments()
     targets, unknown = [], []
     for n in names:
@@ -79,7 +84,7 @@ def run(names, jobs=JOBS):
     done, results = 0, []
     t0 = time.time()
     with ProcessPoolExecutor(max_workers=jobs) as ex:
-        futs = {ex.submit(work_one, t, d): t for t, d in targets}
+        futs = {ex.submit(work_one, t, d, with_pdf): t for t, d in targets}
         for f in as_completed(futs):
             r = f.result(); results.append(r); done += 1
             tag = f"[{done}/{len(targets)}]"
@@ -116,6 +121,9 @@ def status():
 
 def main(argv):
     args, jobs, names = argv[:], JOBS, []
+    with_pdf = '--with-pdf' in args
+    if with_pdf:
+        args.remove('--with-pdf')
     if '--jobs' in args:
         i = args.index('--jobs'); jobs = int(args[i + 1]); del args[i:i + 2]
     if '--list' in args:
@@ -127,7 +135,7 @@ def main(argv):
     names = [a for a in args if a != '--all']
     if not names:                       # no province given means every province
         names = provinces34()
-    return run(names, jobs)
+    return run(names, jobs, with_pdf)
 
 
 if __name__ == '__main__':

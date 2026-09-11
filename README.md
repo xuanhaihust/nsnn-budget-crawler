@@ -4,7 +4,7 @@ Công cụ tự động tải dữ liệu ngân sách mà các tỉnh đã công
 ngân sách nhà nước của Bộ Tài chính** (`ckns.mof.gov.vn`), rồi xuất ra file Excel
 theo một bộ 16 cột thống nhất.
 
-Một tỉnh mất khoảng **5 phút**. Cả 34 tỉnh khoảng **45–60 phút**.
+Một tỉnh mất khoảng **1–3 phút** (đo được: Lào Cai 47s, Hưng Yên 70s, Cà Mau 190s).
 
 Bạn **không cần biết lập trình**. Chỉ cần gõ đúng vài dòng lệnh.
 

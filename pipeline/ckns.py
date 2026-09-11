@@ -1,5 +1,6 @@
 """CKNS (Bo Tai chinh) catalog client + downloader."""
 import json, urllib.request, urllib.parse, hashlib, pathlib, time, re
+from concurrent.futures import ThreadPoolExecutor
 
 API = "https://ckns.mof.gov.vn/_vti_bin/DeptService.svc/"
 BASE = {"SiteId": "e9e24430-ec5e-4b44-8a1d-a3d06c1e6ed2",
@@ -24,16 +25,26 @@ def post(ep, **kw):
 def departments():
     return {d["Title"]: d["ID"] for d in post("GetDeparment")}
 
+CAT_WORKERS = 6  # pages are independent; fetching them serially cost ~25s per province
+
 def catalog(dept_id):
-    """All reports for one department, every year."""
-    items, page = [], 1
-    while True:
-        r = post("SearchReport", DeparmentId=dept_id, PageIndex=page, PageSize=PAGE)
-        batch = r.get("Items") or []
-        items += batch
-        total = r.get("TotalItems", 0)
-        if not batch or len(items) >= total: break
-        page += 1
+    """All reports for one department, every year.
+
+    Page 1 tells us TotalItems, so the remaining pages are fetched in parallel and
+    concatenated in page order. The server still stops ~50 records short of its own
+    TotalItems, so the last pages come back empty - that is expected, not an error.
+    """
+    first = post("SearchReport", DeparmentId=dept_id, PageIndex=1, PageSize=PAGE)
+    items = list(first.get("Items") or [])
+    total = first.get("TotalItems", 0)
+    if not items or len(items) >= total:
+        return items, total
+    pages = range(2, -(-total // PAGE) + 1)
+    def page(n):
+        return post("SearchReport", DeparmentId=dept_id, PageIndex=n, PageSize=PAGE).get("Items") or []
+    with ThreadPoolExecutor(max_workers=CAT_WORKERS) as ex:
+        for batch in ex.map(page, pages):
+            items += batch
     return items, total
 
 DATE = re.compile(r"/Date\((\d+)")
