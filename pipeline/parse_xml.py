@@ -1,28 +1,67 @@
 """Parse TT343 XML attachments into the 16-column long-format schema."""
-import re, json, pathlib, xml.etree.ElementTree as ET
+import re, json, pathlib, unicodedata, xml.etree.ElementTree as ET
 
 META = ('title','type','year','periodType','code','circular','department',
         'curencyunit','filename','header')
 
-UNIT_VND = {'đồng':1, 'nghìn đồng':1_000, 'triệu đồng':1_000_000, 'tỷ đồng':1_000_000_000}
+SCALE = {'đồng': 1, 'nghìn': 1_000, 'ngàn': 1_000, 'triệu': 1_000_000,
+         'tỷ': 1_000_000_000, 'tỉ': 1_000_000_000}
+UNIT_VND = {'đồng': 1, 'nghìn đồng': 1_000, 'triệu đồng': 1_000_000, 'tỷ đồng': 1_000_000_000}
+POW10 = {1, 1_000, 1_000_000, 1_000_000_000}
+
 
 def clean_unit(u):
-    u = re.sub(r'[\s.:;,]+$', '', (u or '').strip())
-    u = re.sub(r'\s+', ' ', u)
-    return u
+    """Trim decoration and normalise to NFC.
+
+    Some sources write Vietnamese decomposed (NFD): "ê" as e + U+0323, "ồ" as ô + U+0300.
+    Such a string looks identical but never equals the NFC literals in SCALE, so units like
+    "Triệu đồng" silently resolved to no factor at all and lost their VND conversion.
+    A trailing ")" is only dropped when it is not closing a "(" that is still open, so
+    "% (phần trăm)" does not decay into "% (phần trăm".
+    """
+    u = unicodedata.normalize('NFC', (u or '').strip())
+    u = re.sub(r'^[\s\[]+', '', u)
+    u = re.sub(r'[\s.:;,/\]]+$', '', u)
+    while u.endswith(')') and u.count('(') < u.count(')'):
+        u = re.sub(r'[\s.:;,/\])]+$', '', u[:-1] + ' ').strip()
+    return re.sub(r'\s+', ' ', u).strip()
+
 
 def unit_factor(u):
-    """Longest unit name wins: 'triệu đồng' must not match the 'đồng' suffix.
+    """VND multiplier for a unit string, or None when it is unknown or ambiguous.
 
-    Returns None when the unit is unknown OR ambiguous. A string naming both a percentage
-    and a currency ("Đơn vị tính: % ... Đơn vị: Triệu đồng") cannot tell us which applies to
-    a given row, and the rules forbid inferring one: leave Quy đổi VND empty instead.
+    Matched by WORD, not by suffix. A suffix test treats every string ending in "đồng" as
+    plain đồng, so "Tiệu đồng" (a misspelling of "Triệu đồng") silently resolved to factor 1
+    and made those values a million times too small - the exact failure CLAUDE.md records as
+    having shipped once. Now the word before "đồng" decides:
+
+      "đồng"            -> 1            "triệu đồng"     -> 1_000_000
+      "nghìn đồng"      -> 1_000        "1.000 đồng"     -> 1_000   (a stated multiplier)
+      "tỷ đồng"         -> 1e9          "1.000.000 đồng" -> 1_000_000
+      "Tiệu đồng"       -> None         "UBND tỉnh Cao Bằng" -> None
+
+    Anything else returns None, so Quy đổi VND is left empty rather than guessed. A string
+    naming both a percentage and a currency is ambiguous for the same reason and also
+    returns None.
     """
     u = clean_unit(u).lower()
-    for k in sorted(UNIT_VND, key=len, reverse=True):
-        if u == k or u.startswith(k + ' ') or u.endswith(' ' + k):
-            return None if '%' in u else UNIT_VND[k]
+    if not u.endswith('đồng'):
+        return None
+    if '%' in u:
+        return None
+    words = u.split()
+    if words[-1] != 'đồng':                 # e.g. "triệu dồng" - not our word, do not guess
+        return None
+    if len(words) == 1:
+        return 1
+    scale = words[-2]
+    if scale in SCALE:
+        return SCALE[scale] if scale != 'đồng' else 1
+    digits = scale.replace('.', '').replace(',', '')
+    if digits.isdigit() and int(digits) in POW10:
+        return int(digits)
     return None
+
 
 NUM = re.compile(r'^-?[\d., ]+$')
 def norm_num(raw):

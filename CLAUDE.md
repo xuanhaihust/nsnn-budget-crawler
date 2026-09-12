@@ -107,9 +107,25 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
 - **TT343 XML declares `utf-16` but is `utf-8`.** Decode defensively.
 - **Headers span up to 3 merged rows.** They are rebuilt by forward-filling across merged
   cells and joining levels with ` / `.
-- **Unit matching must try the longest name first.** `"triệu đồng"` ends with `" đồng"`, so a
-  naive suffix match resolved it to factor 1 and made every value 1,000,000x too small. This
-  bug shipped once already.
+- **Never match a unit by suffix — match the word before `đồng`.** Any suffix test treats every
+  string ending in `"đồng"` as plain đồng. That made `"triệu đồng"` factor 1 once (values
+  1,000,000x too small), and the same shape came back a second time through `"Tiệu đồng"`
+  (166 rows), `"1.000 đồng"` (540) and `"1.000.000 đồng"` (401), all silently resolving to 1.
+  `unit_factor` now splits the string and reads the scale word, accepting a stated numeric
+  multiplier (`1.000 đồng` → 1,000) and returning **None** for anything else, so an unknown
+  spelling leaves `Quy đổi VND` blank instead of wrong.
+- **Unit strings arrive in NFD as well as NFC.** Some sources write `ê` as `e`+U+0323 and `ồ` as
+  `ô`+U+0300. The string looks identical but never equals an NFC literal, so `"Triệu đồng"` from
+  Hưng Yên (1,520 rows) and Lạng Sơn matched nothing and lost its conversion. `clean_unit`
+  normalises to NFC first.
+- **`Đơn vị:` is not always a unit of measure.** In Vietnamese it also means *organisation*, so
+  `"Đơn vị: UBND tỉnh Cao Bằng"` is a department heading. Accepting it put agency names in the
+  `ĐVT` column of ~37,000 rows. `Đơn vị tính:` is unambiguous and wins; a bare `Đơn vị:` is only
+  trusted when what follows actually looks like a unit.
+- **Match the unit inside one cell, never across a flattened row.** Joining a row with spaces
+  hides cell boundaries, so a greedy capture swallows every later cell. One row holding
+  `"Đơn vị tính: %"`, `"Đơn vị: Triệu đồng"`, `"Đơn vị: Triệu đồng"` in three cells produced a
+  unit that resolved to a currency and put a VND value on a percentage table.
 - CKNS name aliases: the Source Master says `Huế` and `TP Hồ Chí Minh`; CKNS says
   `Thừa Thiên Huế` and `Hồ Chí Minh`. Handled by `ALIAS` in `run.py`.
 
@@ -130,8 +146,9 @@ not built yet.
 
 ## Status
 
-Produced by this pipeline (5/34): Bắc Ninh 108,862 · Quảng Ninh 95,829 · Hà Nội 90,959 ·
-Hưng Yên 82,220 · Hải Phòng 48,338. Run `./nsnn --status` for the live list.
+All 34 provinces are built and committed under `output/` (tracked by Git LFS): 3,814,427 rows,
+0 failed reports, 500 entries across the Pending_Review sheets. Run `./nsnn --status` for the
+live list.
 Manual, portal-sourced, kept in `samples/`: Hải Phòng, Huế.
 
 ## Working agreement

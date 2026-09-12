@@ -59,7 +59,10 @@ def sheet_rows(path: pathlib.Path):
             grid.append([cells.get(i, '') for i in range(width)])
         yield nm, grid
 
-RE_UNIT = re.compile(r'Đơn vị(?:\s*tính)?\s*[::]\s*(.+)', re.I)
+RE_UNIT_TINH = re.compile(r'Đơn vị\s*tính\s*[::]\s*(.*)', re.I)   # unambiguous: a unit of measure
+RE_UNIT_BARE = re.compile(r'Đơn vị\s*[::]\s*(.*)', re.I)           # ambiguous: "đơn vị" also means agency
+RE_ORG = re.compile(r'(ubnd|ủy ban|uỷ ban|^sở\s|^ban\s|trung tâm|^trạm\s|chi cục|^phòng\s'
+                    r'|văn phòng|bệnh viện|^trường\s|công ty|^đội\s|^hạt\s|^vườn\s)', re.I)
 RE_FORM = re.compile(r'Biểu\s*số\s*([0-9A-Za-z/\-]+)', re.I)
 RE_QD   = re.compile(r'(Quyết định|Nghị quyết)\s*số[::]?\s*([^\s,;)]+)', re.I)
 HDR_KEY = ('stt', 'nội dung', 'noi dung', 'chỉ tiêu', 'chi tieu')
@@ -67,27 +70,53 @@ HDR_KEY = ('stt', 'nội dung', 'noi dung', 'chỉ tiêu', 'chi tieu')
 RE_IDX = re.compile(r'^(số\s*)?(stt|tt)\.?$', re.I)
 RE_LBL = re.compile(r'(nội dung|noi dung|chỉ tiêu|chi tieu|danh mục|danh muc|tên\s|ten\s|đơn vị sử dụng|khoản mục)', re.I)
 
+def looks_like_unit(u):
+    """Reject an agency name captured from a bare "Đơn vị:".
+
+    Vietnamese "đơn vị" means both "unit of measure" and "organisation", so a bare
+    "Đơn vị: UBND tỉnh Cao Bằng" is a department heading, not a unit. Accepting it put an
+    agency name in the ĐVT column of ~37,000 rows and left their money values unconverted.
+    """
+    if not u or RE_ORG.search(u):
+        return False
+    if unit_factor(u) is not None or '%' in u:
+        return True
+    return len(u) <= 16 and not re.search(r'\d{3}', u)
+
+
+def _capture(r, i, m):
+    """The regex capture, or the next non-empty cell when the label stands alone."""
+    u = m.group(1).strip()
+    if u:
+        return u
+    for nxt in r[i + 1:]:
+        if (nxt or '').strip():
+            return nxt.strip()
+    return ''
+
+
 def find_unit(grid):
     """Find the sheet's unit, matching one CELL at a time.
 
-    Matching a whole flattened row lets RE_UNIT's (.+) run past the unit and swallow every
-    later cell, because a row is joined with spaces and cell boundaries are then invisible.
-    A real case: a row holding "Đơn vị tính: %", "Đơn vị: Triệu đồng", "Đơn vị: Triệu đồng"
-    in three separate cells flattened to one string whose capture was
-    "%  Đơn vị: Triệu đồng   Đơn vị: Triệu đồng" - which then resolved to a currency and put
-    a VND value on a percentage table. Bounding the capture to its own cell yields "%".
+    Matching a whole flattened row lets the capture run past the unit and swallow every later
+    cell, because a row is joined with spaces and cell boundaries are then invisible. A real
+    case: a row holding "Đơn vị tính: %", "Đơn vị: Triệu đồng", "Đơn vị: Triệu đồng" in three
+    separate cells flattened to one string whose capture was "%  Đơn vị: Triệu đồng   Đơn vị:
+    Triệu đồng", which then resolved to a currency and put a VND value on a percentage table.
+
+    "Đơn vị tính:" always introduces a unit of measure, so it wins outright. A bare
+    "Đơn vị:" is only trusted when what follows actually looks like a unit.
     """
     for r in grid[:60]:
         for i, c in enumerate(r):
-            m = RE_UNIT.search(c or '')
-            if not m:
-                continue
-            u = m.group(1).strip()
-            if u:
+            m = RE_UNIT_TINH.search(c or '')
+            if m and (u := _capture(r, i, m)):
                 return u
-            for nxt in r[i + 1:]:      # "Đơn vị tính:" and its value in separate cells
-                if (nxt or '').strip():
-                    return nxt.strip()
+    for r in grid[:60]:
+        for i, c in enumerate(r):
+            m = RE_UNIT_BARE.search(c or '')
+            if m and (u := _capture(r, i, m)) and looks_like_unit(u):
+                return u
     return ''
 
 
