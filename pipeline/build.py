@@ -23,18 +23,19 @@ def build(province, workdir):
     rows, status = [], {}
     for rid, rec in cat.items():
         atts = rec.get('Attachments') or []
-        if not atts: continue
         fs = by_report.get(rid, [])
         xml = [f for f in fs if f['filename'].lower().endswith('.xml')]
         sheets = [f for f in fs if f['filename'].lower().endswith(('.xls', '.xlsx'))]
-        got, how, err = 0, '', ''
+        got, how, err, tried = 0, '', '', 0
         for f in xml:
+            tried += 1
             try:
                 r = list(parse_xml.rows_from(out / f['path'], rec, province))
                 rows += r; got += len(r); how = 'XML'
             except Exception as e: err = f"{type(e).__name__}: {e}"
         if not got:
             for f in sheets:
+                tried += 1
                 try:
                     r = list(parse_xlsx.rows_from(out / f['path'], rec, province))
                     rows += r; got += len(r); how = 'XLSX'
@@ -44,7 +45,21 @@ def build(province, workdir):
         exts = sorted({a['FileName'].rsplit('.', 1)[-1].lower()
                        for a in atts if '.' in a['FileName']})
         if not got:
-            how = 'PENDING_PDF_DOC' if exts and not ({'xls','xlsx','xml'} & set(exts)) else 'PARSE_FAILED'
+            # every reason a report yields nothing gets a name and a sentence, so nobody has
+            # to guess later whether the parser broke or the province published nothing
+            if not atts:
+                how = 'PENDING_NO_FILE'
+                err = err or 'the catalog lists this report with no attachment at all'
+            elif not ({'xls', 'xlsx', 'xml'} & set(exts)):
+                how = 'PENDING_PDF_DOC'
+                err = err or f"only non-machine-readable formats published ({','.join(exts)})"
+            elif not (xml or sheets):
+                how = 'PARSE_FAILED'
+                err = err or 'a machine-readable attachment is listed but was not downloaded'
+            else:
+                how = 'PARSE_FAILED'
+                err = err or (f'parsed {tried} machine-readable file(s) without error but found '
+                              'no table rows in them')
         status[rid] = dict(rows=got, method=how, err=err,
                            title=rec.get('Title',''), year=rec.get('YearTextMonthOrPeriod',''),
                            exts=exts)
@@ -85,6 +100,7 @@ def write(province, final, status, stats, dest):
               ('Báo cáo trích được dữ liệu', sum(1 for v in status.values() if v['rows'])),
               ('Báo cáo theo XML', meth.get('XML', 0)), ('Báo cáo theo XLS/XLSX', meth.get('XLSX', 0)),
               ('Báo cáo chờ PDF/DOC (pending)', meth.get('PENDING_PDF_DOC', 0)),
+              ('Báo cáo không có file đính kèm', meth.get('PENDING_NO_FILE', 0)),
               ('Báo cáo parse lỗi', meth.get('PARSE_FAILED', 0)),
               ('Dòng thô', stats['raw']), ('Trùng tuyệt đối đã loại', stats['exact_dup']),
               ('Trùng logic đã loại', stats['logical_dup']), ('Dòng cuối cùng', len(final)),
@@ -100,7 +116,7 @@ def write(province, final, status, stats, dest):
     p.append(['report_id', 'năm', 'tiêu đề', 'định dạng có sẵn', 'trạng thái', 'lỗi'])
     for c in p[1]: c.font = Font(bold=True)
     for rid, v in sorted(status.items()):
-        if v['method'] in ('PENDING_PDF_DOC', 'PARSE_FAILED'):
+        if v['method'] in ('PENDING_PDF_DOC', 'PENDING_NO_FILE', 'PARSE_FAILED'):
             p.append([rid, v['year'], v['title'], ','.join(v['exts']), v['method'], v['err'][:180]])
     for col, w in zip('ABCDEF', [11, 8, 60, 20, 18, 50]): p.column_dimensions[col].width = w
     wb.save(dest); return dest
