@@ -1,0 +1,386 @@
+<title>Bản đồ công khai ngân sách</title>
+<style>
+  :root {
+    color-scheme: light;
+    --plane:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+    --q1:#cde2fb; --q2:#9ec5f4; --q3:#6da7ec; --q4:#3987e5; --q5:#256abf; --q6:#104281;
+    --zero:#efeee9;
+    --good:#0ca30c; --warn:#fab219; --crit:#d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+      --q1:#104281; --q2:#184f95; --q3:#256abf; --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4;
+      --zero:#232322;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+    --q1:#104281; --q2:#184f95; --q3:#256abf; --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4;
+    --zero:#232322;
+  }
+  * { box-sizing:border-box; }
+  body { background:var(--plane); color:var(--ink);
+         font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+         padding-block:32px; padding-left:20px; padding-right:20px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:clamp(24px,4.4vw,34px); line-height:1.15; letter-spacing:-.02em; margin:0 0 8px; font-weight:640; }
+  .lede { color:var(--ink2); max-width:62ch; margin:0 0 4px; }
+  .src { color:var(--muted); font-size:12.5px; margin:8px 0 0; }
+  section { background:var(--surface); border:1px solid var(--ring); border-radius:14px;
+            padding:20px; margin-top:18px; }
+  h2 { font-size:15px; font-weight:640; margin:0 0 2px; letter-spacing:-.01em; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 16px; max-width:70ch; }
+  /* KPI */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px;
+          background:var(--ring); border:1px solid var(--ring); border-radius:14px;
+          overflow:hidden; margin-top:18px; }
+  .kpi { background:var(--surface); padding:16px 18px; }
+  .kpi b { display:block; font-size:clamp(21px,3.2vw,27px); font-weight:640; letter-spacing:-.02em;
+           font-variant-numeric:tabular-nums; }
+  .kpi span { color:var(--muted); font-size:12px; display:block; margin-top:3px; }
+  .kpi i { font-style:normal; color:var(--ink2); font-size:11.5px; }
+  /* generic */
+  /* A wide chart scrolls at its natural size rather than shrinking: squeezing a
+     34-row heatmap into 360px makes every label unreadable. */
+  .scroll { overflow-x:auto; overflow-y:hidden; margin:0 -4px; padding:0 4px 4px;
+            -webkit-overflow-scrolling:touch; }
+  svg { display:block; }
+  .scroll svg { max-width:none; }
+  text { font:11px system-ui,-apple-system,sans-serif; fill:var(--muted); }
+  .lgd { display:flex; flex-wrap:wrap; gap:14px; margin:14px 0 0; font-size:12.5px; color:var(--ink2); }
+  .lgd i { width:10px; height:10px; border-radius:3px; display:inline-block; margin-right:6px;
+           vertical-align:-1px; }
+  .ramp { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); margin-top:14px; }
+  .ramp u { width:26px; height:10px; border-radius:2px; display:block; text-decoration:none; }
+  /* table view */
+  details { margin-top:14px; }
+  summary { cursor:pointer; color:var(--ink2); font-size:12.5px; width:fit-content; }
+  table { border-collapse:collapse; width:100%; margin-top:10px; font-size:12.5px; }
+  th,td { text-align:right; padding:5px 8px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+  th:first-child,td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:600; position:sticky; top:0; background:var(--surface); }
+  td { font-variant-numeric:tabular-nums; }
+  .tblwrap { max-height:340px; overflow:auto; }
+  /* tooltip */
+  #tip { position:fixed; pointer-events:none; opacity:0; transition:opacity .1s;
+         background:var(--surface); color:var(--ink); border:1px solid var(--ring);
+         border-radius:9px; padding:8px 10px; font-size:12.5px; line-height:1.45;
+         box-shadow:0 6px 22px rgba(0,0,0,.16); z-index:9; max-width:250px; }
+  #tip b { font-weight:640; }
+  #tip em { font-style:normal; color:var(--muted); }
+  .note { border-left:2px solid var(--axis); padding-left:12px; color:var(--ink2);
+          font-size:12.5px; margin-top:16px; }
+  .note b { color:var(--ink); font-weight:600; }
+  footer { color:var(--muted); font-size:12px; margin:26px 0 8px; }
+  footer a { color:var(--ink2); }
+  @media (max-width:560px){ section{padding:16px 14px;} .kpi{padding:13px 14px;} }
+</style>
+
+<div class="wrap">
+  <h1>Công khai ngân sách 34 tỉnh/thành</h1>
+  <p class="lede">Toàn bộ dữ liệu ngân sách mà 34 tỉnh/thành công bố trên cổng Công khai
+    ngân sách nhà nước của Bộ Tài chính, gom về một lược đồ 16 cột và kiểm chứng từng dòng.</p>
+  <p class="src">Nguồn: <b>ckns.mof.gov.vn</b> · mọi con số dưới đây được tính trực tiếp từ
+    <code>data/nsnn.db</code>, không ước lượng.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <section>
+    <h2>Tỉnh nào công khai, từ năm nào</h2>
+    <p class="sub">Mỗi ô là số báo cáo một tỉnh công bố cho một năm ngân sách. Càng đậm càng nhiều.
+      Ô trống nghĩa là năm đó tỉnh không công bố báo cáo nào lên cổng Bộ Tài chính.</p>
+    <div class="scroll"><svg id="heat"></svg></div>
+    <div class="ramp" id="heatramp"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="heattbl"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Khối lượng dữ liệu theo năm và loại báo cáo</h2>
+    <p class="sub">Số dòng dữ liệu trích được, xếp theo năm ngân sách. Ba loại báo cáo chính
+      phản ánh ba giai đoạn của một chu trình ngân sách: trình, quyết định, rồi quyết toán.</p>
+    <div class="scroll"><svg id="tl"></svg></div>
+    <div class="lgd" id="tllgd"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="tltbl"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Đọc được bằng máy tới đâu</h2>
+    <p class="sub">Với mỗi tỉnh: bao nhiêu báo cáo đọc được qua XML (định dạng giàu nhất, tự mô tả),
+      bao nhiêu phải lùi về bảng tính, và bao nhiêu chưa trích được dòng nào.
+      Tỉ lệ XML càng cao thì dữ liệu càng sạch và càng dễ đối chiếu.</p>
+    <div class="scroll"><svg id="meth"></svg></div>
+    <div class="lgd" id="methlgd"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="methtbl"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Chất lượng dữ liệu</h2>
+    <p class="sub">Đơn vị tính quyết định có quy đổi được ra VND hay không. Chuỗi nào không
+      nhận dạng chắc chắn thì để trống thay vì đoán.</p>
+    <div class="scroll"><svg id="unit"></svg></div>
+    <div class="note" id="qnote"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="unittbl"></table></div></details>
+  </section>
+
+  <footer>
+    <p><b>Phạm vi.</b> Đây là tầng Bộ Tài chính: các biểu ngân sách tổng hợp cấp tỉnh.
+      Không bao gồm công khai cấp sở/ngành trên cổng riêng của từng tỉnh, và không thay thế
+      các file thu thập thủ công.</p>
+    <p id="foot2"></p>
+  </footer>
+</div>
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="payload">{"generated_from":"data/nsnn.db","kpi":{"rows_total":3814427,"provinces":34,"reports":8660,"vnd_rows":1992983,"pending":527,"years":21,"indicators":153272},"provinces":[{"id":1,"name":"An Giang"},{"id":2,"name":"Bắc Ninh"},{"id":5,"name":"Cao Bằng"},{"id":3,"name":"Cà Mau"},{"id":4,"name":"Cần Thơ"},{"id":11,"name":"Gia Lai"},{"id":32,"name":"Huế"},{"id":12,"name":"Hà Nội"},{"id":13,"name":"Hà Tĩnh"},{"id":16,"name":"Hưng Yên"},{"id":14,"name":"Hải Phòng"},{"id":17,"name":"Khánh Hòa"},{"id":18,"name":"Lai Châu"},{"id":21,"name":"Lào Cai"},{"id":19,"name":"Lâm Đồng"},{"id":20,"name":"Lạng Sơn"},{"id":22,"name":"Nghệ An"},{"id":23,"name":"Ninh Bình"},{"id":24,"name":"Phú Thọ"},{"id":25,"name":"Quảng Ngãi"},{"id":26,"name":"Quảng Ninh"},{"id":27,"name":"Quảng Trị"},{"id":28,"name":"Sơn La"},{"id":15,"name":"TP Hồ Chí Minh"},{"id":31,"name":"Thanh Hóa"},{"id":30,"name":"Thái Nguyên"},{"id":33,"name":"Tuyên Quang"},{"id":29,"name":"Tây Ninh"},{"id":34,"name":"Vĩnh Long"},{"id":8,"name":"Điện Biên"},{"id":6,"name":"Đà Nẵng"},{"id":7,"name":"Đắk Lắk"},{"id":9,"name":"Đồng Nai"},{"id":10,"name":"Đồng Tháp"}],"heat":[{"p":1,"y":2005,"n":2},{"p":2,"y":2005,"n":2},{"p":3,"y":2005,"n":2},{"p":4,"y":2005,"n":2},{"p":5,"y":2005,"n":2},{"p":6,"y":2005,"n":2},{"p":7,"y":2005,"n":2},{"p":8,"y":2005,"n":1},{"p":9,"y":2005,"n":2},{"p":10,"y":2005,"n":2},{"p":11,"y":2005,"n":2},{"p":12,"y":2005,"n":2},{"p":13,"y":2005,"n":2},{"p":14,"y":2005,"n":2},{"p":15,"y":2005,"n":2},{"p":16,"y":2005,"n":2},{"p":17,"y":2005,"n":2},{"p":18,"y":2005,"n":2},{"p":19,"y":2005,"n":2},{"p":20,"y":2005,"n":2},{"p":21,"y":2005,"n":2},{"p":22,"y":2005,"n":1},{"p":23,"y":2005,"n":2},{"p":24,"y":2005,"n":2},{"p":25,"y":2005,"n":2},{"p":26,"y":2005,"n":2},{"p":27,"y":2005,"n":2},{"p":28,"y":2005,"n":2},{"p":29,"y":2005,"n":2},{"p":30,"y":2005,"n":2},{"p":31,"y":2005,"n":2},{"p":32,"y":2005,"n":1},{"p":33,"y":2005,"n":1},{"p":34,"y":2005,"n":2},{"p":1,"y":2006,"n":2},{"p":2,"y":2006,"n":2},{"p":3,"y":2006,"n":2},{"p":4,"y":2006,"n":2},{"p":5,"y":2006,"n":1},{"p":6,"y":2006,"n":2},{"p":7,"y":2006,"n":2},{"p":8,"y":2006,"n":2},{"p":9,"y":2006,"n":1},{"p":10,"y":2006,"n":2},{"p":11,"y":2006,"n":2},{"p":12,"y":2006,"n":1},{"p":13,"y":2006,"n":2},{"p":14,"y":2006,"n":1},{"p":15,"y":2006,"n":2},{"p":16,"y":2006,"n":2},{"p":17,"y":2006,"n":2},{"p":18,"y":2006,"n":2},{"p":19,"y":2006,"n":1},{"p":20,"y":2006,"n":2},{"p":21,"y":2006,"n":2},{"p":22,"y":2006,"n":2},{"p":23,"y":2006,"n":2},{"p":24,"y":2006,"n":2},{"p":25,"y":2006,"n":2},{"p":26,"y":2006,"n":2},{"p":27,"y":2006,"n":2},{"p":28,"y":2006,"n":2},{"p":29,"y":2006,"n":1},{"p":30,"y":2006,"n":1},{"p":31,"y":2006,"n":2},{"p":32,"y":2006,"n":1},{"p":33,"y":2006,"n":2},{"p":34,"y":2006,"n":2},{"p":1,"y":2007,"n":2},{"p":2,"y":2007,"n":2},{"p":3,"y":2007,"n":2},{"p":4,"y":2007,"n":2},{"p":5,"y":2007,"n":2},{"p":6,"y":2007,"n":2},{"p":7,"y":2007,"n":2},{"p":8,"y":2007,"n":2},{"p":9,"y":2007,"n":2},{"p":10,"y":2007,"n":2},{"p":11,"y":2007,"n":2},{"p":12,"y":2007,"n":1},{"p":13,"y":2007,"n":2},{"p":14,"y":2007,"n":1},{"p":15,"y":2007,"n":2},{"p":16,"y":2007,"n":2},{"p":17,"y":2007,"n":2},{"p":18,"y":2007,"n":2},{"p":19,"y":2007,"n":2},{"p":20,"y":2007,"n":2},{"p":21,"y":2007,"n":2},{"p":22,"y":2007,"n":1},{"p":23,"y":2007,"n":2},{"p":24,"y":2007,"n":2},{"p":25,"y":2007,"n":2},{"p":26,"y":2007,"n":2},{"p":27,"y":2007,"n":2},{"p":28,"y":2007,"n":2},{"p":29,"y":2007,"n":2},{"p":30,"y":2007,"n":2},{"p":31,"y":2007,"n":2},{"p":32,"y":2007,"n":1},{"p":33,"y":2007,"n":2},{"p":34,"y":2007,"n":2},{"p":1,"y":2008,"n":2},{"p":2,"y":2008,"n":2},{"p":3,"y":2008,"n":2},{"p":4,"y":2008,"n":2},{"p":5,"y":2008,"n":1},{"p":6,"y":2008,"n":2},{"p":7,"y":2008,"n":2},{"p":8,"y":2008,"n":1},{"p":9,"y":2008,"n":1},{"p":10,"y":2008,"n":2},{"p":11,"y":2008,"n":2},{"p":12,"y":2008,"n":1},{"p":13,"y":2008,"n":2},{"p":14,"y":2008,"n":1},{"p":15,"y":2008,"n":2},{"p":16,"y":2008,"n":2},{"p":17,"y":2008,"n":2},{"p":18,"y":2008,"n":1},{"p":19,"y":2008,"n":2},{"p":20,"y":2008,"n":2},{"p":21,"y":2008,"n":2},{"p":22,"y":2008,"n":2},{"p":23,"y":2008,"n":2},{"p":24,"y":2008,"n":2},{"p":25,"y":2008,"n":2},{"p":26,"y":2008,"n":2},{"p":27,"y":2008,"n":2},{"p":28,"y":2008,"n":1},{"p":29,"y":2008,"n":2},{"p":30,"y":2008,"n":2},{"p":31,"y":2008,"n":2},{"p":32,"y":2008,"n":1},{"p":33,"y":2008,"n":2},{"p":34,"y":2008,"n":2},{"p":1,"y":2009,"n":1},{"p":2,"y":2009,"n":1},{"p":3,"y":2009,"n":2},{"p":4,"y":2009,"n":2},{"p":5,"y":2009,"n":2},{"p":6,"y":2009,"n":2},{"p":7,"y":2009,"n":2},{"p":8,"y":2009,"n":2},{"p":9,"y":2009,"n":2},{"p":10,"y":2009,"n":2},{"p":11,"y":2009,"n":2},{"p":12,"y":2009,"n":1},{"p":13,"y":2009,"n":2},{"p":14,"y":2009,"n":1},{"p":15,"y":2009,"n":2},{"p":16,"y":2009,"n":2},{"p":17,"y":2009,"n":2},{"p":18,"y":2009,"n":2},{"p":19,"y":2009,"n":2},{"p":20,"y":2009,"n":2},{"p":21,"y":2009,"n":1},{"p":22,"y":2009,"n":2},{"p":23,"y":2009,"n":2},{"p":24,"y":2009,"n":2},{"p":25,"y":2009,"n":2},{"p":26,"y":2009,"n":2},{"p":27,"y":2009,"n":2},{"p":28,"y":2009,"n":2},{"p":29,"y":2009,"n":2},{"p":30,"y":2009,"n":2},{"p":31,"y":2009,"n":2},{"p":32,"y":2009,"n":1},{"p":33,"y":2009,"n":2},{"p":34,"y":2009,"n":2},{"p":1,"y":2010,"n":1},{"p":2,"y":2010,"n":2},{"p":3,"y":2010,"n":2},{"p":4,"y":2010,"n":2},{"p":5,"y":2010,"n":2},{"p":6,"y":2010,"n":2},{"p":7,"y":2010,"n":2},{"p":8,"y":2010,"n":2},{"p":9,"y":2010,"n":1},{"p":10,"y":2010,"n":2},{"p":11,"y":2010,"n":2},{"p":12,"y":2010,"n":2},{"p":13,"y":2010,"n":2},{"p":14,"y":2010,"n":1},{"p":15,"y":2010,"n":2},{"p":16,"y":2010,"n":2},{"p":17,"y":2010,"n":2},{"p":18,"y":2010,"n":2},{"p":19,"y":2010,"n":2},{"p":20,"y":2010,"n":2},{"p":21,"y":2010,"n":1},{"p":22,"y":2010,"n":2},{"p":23,"y":2010,"n":1},{"p":24,"y":2010,"n":2},{"p":25,"y":2010,"n":2},{"p":26,"y":2010,"n":2},{"p":27,"y":2010,"n":2},{"p":28,"y":2010,"n":1},{"p":29,"y":2010,"n":2},{"p":30,"y":2010,"n":2},{"p":31,"y":2010,"n":2},{"p":32,"y":2010,"n":1},{"p":33,"y":2010,"n":2},{"p":34,"y":2010,"n":2},{"p":2,"y":2011,"n":2},{"p":3,"y":2011,"n":2},{"p":4,"y":2011,"n":2},{"p":5,"y":2011,"n":1},{"p":6,"y":2011,"n":2},{"p":7,"y":2011,"n":2},{"p":8,"y":2011,"n":2},{"p":9,"y":2011,"n":2},{"p":10,"y":2011,"n":2},{"p":11,"y":2011,"n":2},{"p":12,"y":2011,"n":2},{"p":13,"y":2011,"n":1},{"p":14,"y":2011,"n":2},{"p":15,"y":2011,"n":2},{"p":16,"y":2011,"n":2},{"p":17,"y":2011,"n":2},{"p":18,"y":2011,"n":2},{"p":19,"y":2011,"n":1},{"p":20,"y":2011,"n":2},{"p":21,"y":2011,"n":1},{"p":22,"y":2011,"n":2},{"p":23,"y":2011,"n":2},{"p":24,"y":2011,"n":2},{"p":25,"y":2011,"n":2},{"p":26,"y":2011,"n":2},{"p":27,"y":2011,"n":2},{"p":28,"y":2011,"n":1},{"p":29,"y":2011,"n":2},{"p":30,"y":2011,"n":2},{"p":31,"y":2011,"n":2},{"p":32,"y":2011,"n":2},{"p":33,"y":2011,"n":2},{"p":34,"y":2011,"n":2},{"p":1,"y":2012,"n":1},{"p":2,"y":2012,"n":2},{"p":3,"y":2012,"n":2},{"p":4,"y":2012,"n":2},{"p":5,"y":2012,"n":2},{"p":6,"y":2012,"n":2},{"p":7,"y":2012,"n":2},{"p":8,"y":2012,"n":2},{"p":9,"y":2012,"n":1},{"p":10,"y":2012,"n":2},{"p":11,"y":2012,"n":2},{"p":12,"y":2012,"n":2},{"p":13,"y":2012,"n":2},{"p":14,"y":2012,"n":1},{"p":15,"y":2012,"n":2},{"p":16,"y":2012,"n":2},{"p":17,"y":2012,"n":2},{"p":18,"y":2012,"n":2},{"p":19,"y":2012,"n":2},{"p":20,"y":2012,"n":2},{"p":21,"y":2012,"n":2},{"p":22,"y":2012,"n":1},{"p":23,"y":2012,"n":1},{"p":24,"y":2012,"n":2},{"p":25,"y":2012,"n":2},{"p":26,"y":2012,"n":2},{"p":27,"y":2012,"n":2},{"p":28,"y":2012,"n":2},{"p":29,"y":2012,"n":2},{"p":30,"y":2012,"n":2},{"p":31,"y":2012,"n":2},{"p":32,"y":2012,"n":2},{"p":33,"y":2012,"n":2},{"p":34,"y":2012,"n":2},{"p":1,"y":2013,"n":1},{"p":2,"y":2013,"n":2},{"p":3,"y":2013,"n":2},{"p":4,"y":2013,"n":2},{"p":5,"y":2013,"n":2},{"p":6,"y":2013,"n":2},{"p":7,"y":2013,"n":2},{"p":8,"y":2013,"n":1},{"p":9,"y":2013,"n":2},{"p":10,"y":2013,"n":2},{"p":11,"y":2013,"n":2},{"p":12,"y":2013,"n":2},{"p":13,"y":2013,"n":2},{"p":14,"y":2013,"n":2},{"p":15,"y":2013,"n":2},{"p":16,"y":2013,"n":2},{"p":17,"y":2013,"n":2},{"p":18,"y":2013,"n":2},{"p":19,"y":2013,"n":2},{"p":20,"y":2013,"n":2},{"p":21,"y":2013,"n":2},{"p":22,"y":2013,"n":2},{"p":23,"y":2013,"n":2},{"p":24,"y":2013,"n":2},{"p":25,"y":2013,"n":2},{"p":26,"y":2013,"n":2},{"p":27,"y":2013,"n":2},{"p":28,"y":2013,"n":2},{"p":29,"y":2013,"n":2},{"p":30,"y":2013,"n":2},{"p":31,"y":2013,"n":2},{"p":32,"y":2013,"n":2},{"p":33,"y":2013,"n":2},{"p":34,"y":2013,"n":2},{"p":1,"y":2014,"n":1},{"p":2,"y":2014,"n":2},{"p":3,"y":2014,"n":2},{"p":4,"y":2014,"n":2},{"p":5,"y":2014,"n":2},{"p":6,"y":2014,"n":2},{"p":7,"y":2014,"n":2},{"p":8,"y":2014,"n":2},{"p":9,"y":2014,"n":1},{"p":10,"y":2014,"n":2},{"p":11,"y":2014,"n":2},{"p":12,"y":2014,"n":2},{"p":13,"y":2014,"n":3},{"p":14,"y":2014,"n":2},{"p":15,"y":2014,"n":2},{"p":16,"y":2014,"n":2},{"p":17,"y":2014,"n":2},{"p":18,"y":2014,"n":2},{"p":19,"y":2014,"n":2},{"p":20,"y":2014,"n":2},{"p":21,"y":2014,"n":2},{"p":22,"y":2014,"n":2},{"p":23,"y":2014,"n":2},{"p":24,"y":2014,"n":2},{"p":25,"y":2014,"n":2},{"p":26,"y":2014,"n":2},{"p":27,"y":2014,"n":1},{"p":28,"y":2014,"n":2},{"p":29,"y":2014,"n":2},{"p":30,"y":2014,"n":2},{"p":31,"y":2014,"n":2},{"p":32,"y":2014,"n":2},{"p":33,"y":2014,"n":2},{"p":34,"y":2014,"n":2},{"p":1,"y":2015,"n":2},{"p":2,"y":2015,"n":2},{"p":3,"y":2015,"n":2},{"p":4,"y":2015,"n":2},{"p":5,"y":2015,"n":2},{"p":6,"y":2015,"n":2},{"p":7,"y":2015,"n":2},{"p":8,"y":2015,"n":2},{"p":9,"y":2015,"n":2},{"p":10,"y":2015,"n":2},{"p":11,"y":2015,"n":2},{"p":12,"y":2015,"n":2},{"p":13,"y":2015,"n":2},{"p":14,"y":2015,"n":2},{"p":15,"y":2015,"n":1},{"p":16,"y":2015,"n":2},{"p":17,"y":2015,"n":2},{"p":18,"y":2015,"n":2},{"p":19,"y":2015,"n":2},{"p":20,"y":2015,"n":2},{"p":21,"y":2015,"n":1},{"p":22,"y":2015,"n":2},{"p":23,"y":2015,"n":2},{"p":24,"y":2015,"n":2},{"p":25,"y":2015,"n":2},{"p":26,"y":2015,"n":2},{"p":27,"y":2015,"n":2},{"p":28,"y":2015,"n":2},{"p":29,"y":2015,"n":2},{"p":30,"y":2015,"n":2},{"p":31,"y":2015,"n":2},{"p":32,"y":2015,"n":2},{"p":33,"y":2015,"n":2},{"p":34,"y":2015,"n":2},{"p":1,"y":2016,"n":1},{"p":2,"y":2016,"n":2},{"p":3,"y":2016,"n":2},{"p":4,"y":2016,"n":2},{"p":5,"y":2016,"n":2},{"p":6,"y":2016,"n":2},{"p":7,"y":2016,"n":2},{"p":8,"y":2016,"n":2},{"p":9,"y":2016,"n":1},{"p":10,"y":2016,"n":2},{"p":11,"y":2016,"n":2},{"p":12,"y":2016,"n":2},{"p":13,"y":2016,"n":2},{"p":14,"y":2016,"n":1},{"p":15,"y":2016,"n":1},{"p":16,"y":2016,"n":2},{"p":17,"y":2016,"n":2},{"p":18,"y":2016,"n":2},{"p":19,"y":2016,"n":2},{"p":20,"y":2016,"n":1},{"p":21,"y":2016,"n":2},{"p":22,"y":2016,"n":1},{"p":23,"y":2016,"n":2},{"p":24,"y":2016,"n":2},{"p":25,"y":2016,"n":2},{"p":26,"y":2016,"n":2},{"p":28,"y":2016,"n":1},{"p":29,"y":2016,"n":2},{"p":30,"y":2016,"n":1},{"p":31,"y":2016,"n":2},{"p":32,"y":2016,"n":1},{"p":33,"y":2016,"n":1},{"p":34,"y":2016,"n":2},{"p":1,"y":2017,"n":8},{"p":2,"y":2017,"n":8},{"p":3,"y":2017,"n":8},{"p":4,"y":2017,"n":8},{"p":5,"y":2017,"n":8},{"p":6,"y":2017,"n":8},{"p":7,"y":2017,"n":8},{"p":8,"y":2017,"n":8},{"p":9,"y":2017,"n":7},{"p":10,"y":2017,"n":4},{"p":11,"y":2017,"n":8},{"p":12,"y":2017,"n":8},{"p":13,"y":2017,"n":8},{"p":14,"y":2017,"n":7},{"p":15,"y":2017,"n":7},{"p":16,"y":2017,"n":8},{"p":17,"y":2017,"n":8},{"p":18,"y":2017,"n":8},{"p":19,"y":2017,"n":8},{"p":20,"y":2017,"n":8},{"p":21,"y":2017,"n":4},{"p":22,"y":2017,"n":8},{"p":23,"y":2017,"n":8},{"p":24,"y":2017,"n":8},{"p":25,"y":2017,"n":8},{"p":26,"y":2017,"n":8},{"p":27,"y":2017,"n":7},{"p":28,"y":2017,"n":8},{"p":29,"y":2017,"n":8},{"p":30,"y":2017,"n":8},{"p":31,"y":2017,"n":8},{"p":32,"y":2017,"n":1},{"p":33,"y":2017,"n":8},{"p":34,"y":2017,"n":8},{"p":1,"y":2018,"n":43},{"p":2,"y":2018,"n":48},{"p":3,"y":2018,"n":48},{"p":4,"y":2018,"n":23},{"p":5,"y":2018,"n":35},{"p":6,"y":2018,"n":48},{"p":7,"y":2018,"n":10},{"p":8,"y":2018,"n":48},{"p":9,"y":2018,"n":23},{"p":10,"y":2018,"n":30},{"p":11,"y":2018,"n":45},{"p":12,"y":2018,"n":10},{"p":13,"y":2018,"n":48},{"p":14,"y":2018,"n":23},{"p":15,"y":2018,"n":38},{"p":16,"y":2018,"n":40},{"p":17,"y":2018,"n":34},{"p":18,"y":2018,"n":48},{"p":19,"y":2018,"n":48},{"p":20,"y":2018,"n":26},{"p":21,"y":2018,"n":23},{"p":22,"y":2018,"n":47},{"p":23,"y":2018,"n":25},{"p":24,"y":2018,"n":8},{"p":25,"y":2018,"n":48},{"p":26,"y":2018,"n":48},{"p":27,"y":2018,"n":21},{"p":28,"y":2018,"n":24},{"p":29,"y":2018,"n":36},{"p":30,"y":2018,"n":23},{"p":31,"y":2018,"n":41},{"p":32,"y":2018,"n":3},{"p":33,"y":2018,"n":40},{"p":34,"y":2018,"n":48},{"p":1,"y":2019,"n":42},{"p":2,"y":2019,"n":47},{"p":3,"y":2019,"n":47},{"p":4,"y":2019,"n":47},{"p":5,"y":2019,"n":33},{"p":6,"y":2019,"n":47},{"p":7,"y":2019,"n":34},{"p":8,"y":2019,"n":47},{"p":9,"y":2019,"n":47},{"p":10,"y":2019,"n":31},{"p":11,"y":2019,"n":47},{"p":12,"y":2019,"n":22},{"p":13,"y":2019,"n":47},{"p":14,"y":2019,"n":29},{"p":15,"y":2019,"n":40},{"p":16,"y":2019,"n":41},{"p":17,"y":2019,"n":33},{"p":18,"y":2019,"n":47},{"p":19,"y":2019,"n":47},{"p":20,"y":2019,"n":47},{"p":21,"y":2019,"n":18},{"p":22,"y":2019,"n":47},{"p":23,"y":2019,"n":27},{"p":24,"y":2019,"n":12},{"p":25,"y":2019,"n":47},{"p":26,"y":2019,"n":47},{"p":27,"y":2019,"n":30},{"p":28,"y":2019,"n":25},{"p":29,"y":2019,"n":47},{"p":30,"y":2019,"n":34},{"p":31,"y":2019,"n":41},{"p":33,"y":2019,"n":44},{"p":34,"y":2019,"n":47},{"p":1,"y":2020,"n":42},{"p":2,"y":2020,"n":47},{"p":3,"y":2020,"n":47},{"p":4,"y":2020,"n":47},{"p":5,"y":2020,"n":45},{"p":6,"y":2020,"n":47},{"p":7,"y":2020,"n":34},{"p":8,"y":2020,"n":47},{"p":9,"y":2020,"n":47},{"p":10,"y":2020,"n":42},{"p":11,"y":2020,"n":47},{"p":12,"y":2020,"n":30},{"p":13,"y":2020,"n":47},{"p":14,"y":2020,"n":35},{"p":15,"y":2020,"n":39},{"p":16,"y":2020,"n":45},{"p":17,"y":2020,"n":33},{"p":18,"y":2020,"n":47},{"p":19,"y":2020,"n":47},{"p":20,"y":2020,"n":47},{"p":21,"y":2020,"n":16},{"p":22,"y":2020,"n":47},{"p":23,"y":2020,"n":36},{"p":24,"y":2020,"n":4},{"p":25,"y":2020,"n":47},{"p":26,"y":2020,"n":47},{"p":27,"y":2020,"n":31},{"p":28,"y":2020,"n":29},{"p":29,"y":2020,"n":47},{"p":30,"y":2020,"n":43},{"p":31,"y":2020,"n":40},{"p":33,"y":2020,"n":45},{"p":34,"y":2020,"n":47},{"p":1,"y":2021,"n":45},{"p":2,"y":2021,"n":47},{"p":3,"y":2021,"n":47},{"p":4,"y":2021,"n":47},{"p":5,"y":2021,"n":47},{"p":6,"y":2021,"n":47},{"p":7,"y":2021,"n":34},{"p":8,"y":2021,"n":47},{"p":9,"y":2021,"n":47},{"p":10,"y":2021,"n":33},{"p":11,"y":2021,"n":44},{"p":12,"y":2021,"n":30},{"p":13,"y":2021,"n":47},{"p":14,"y":2021,"n":23},{"p":15,"y":2021,"n":38},{"p":16,"y":2021,"n":44},{"p":17,"y":2021,"n":34},{"p":18,"y":2021,"n":42},{"p":19,"y":2021,"n":47},{"p":20,"y":2021,"n":47},{"p":21,"y":2021,"n":18},{"p":22,"y":2021,"n":46},{"p":23,"y":2021,"n":35},{"p":25,"y":2021,"n":40},{"p":26,"y":2021,"n":46},{"p":27,"y":2021,"n":36},{"p":29,"y":2021,"n":47},{"p":30,"y":2021,"n":47},{"p":31,"y":2021,"n":32},{"p":33,"y":2021,"n":45},{"p":34,"y":2021,"n":47},{"p":1,"y":2022,"n":7},{"p":2,"y":2022,"n":39},{"p":3,"y":2022,"n":47},{"p":4,"y":2022,"n":40},{"p":5,"y":2022,"n":46},{"p":6,"y":2022,"n":47},{"p":7,"y":2022,"n":27},{"p":8,"y":2022,"n":39},{"p":9,"y":2022,"n":39},{"p":10,"y":2022,"n":27},{"p":11,"y":2022,"n":46},{"p":12,"y":2022,"n":22},{"p":13,"y":2022,"n":47},{"p":14,"y":2022,"n":24},{"p":15,"y":2022,"n":39},{"p":16,"y":2022,"n":38},{"p":17,"y":2022,"n":42},{"p":18,"y":2022,"n":40},{"p":19,"y":2022,"n":40},{"p":20,"y":2022,"n":38},{"p":21,"y":2022,"n":18},{"p":22,"y":2022,"n":39},{"p":23,"y":2022,"n":28},{"p":25,"y":2022,"n":46},{"p":26,"y":2022,"n":39},{"p":27,"y":2022,"n":39},{"p":29,"y":2022,"n":40},{"p":30,"y":2022,"n":46},{"p":31,"y":2022,"n":13},{"p":32,"y":2022,"n":6},{"p":33,"y":2022,"n":38},{"p":34,"y":2022,"n":46},{"p":2,"y":2023,"n":33},{"p":3,"y":2023,"n":47},{"p":4,"y":2023,"n":39},{"p":5,"y":2023,"n":40},{"p":6,"y":2023,"n":45},{"p":7,"y":2023,"n":39},{"p":8,"y":2023,"n":39},{"p":9,"y":2023,"n":38},{"p":10,"y":2023,"n":23},{"p":11,"y":2023,"n":40},{"p":12,"y":2023,"n":22},{"p":13,"y":2023,"n":41},{"p":14,"y":2023,"n":26},{"p":15,"y":2023,"n":39},{"p":16,"y":2023,"n":37},{"p":17,"y":2023,"n":37},{"p":18,"y":2023,"n":26},{"p":19,"y":2023,"n":32},{"p":20,"y":2023,"n":23},{"p":21,"y":2023,"n":7},{"p":22,"y":2023,"n":39},{"p":23,"y":2023,"n":27},{"p":25,"y":2023,"n":40},{"p":26,"y":2023,"n":34},{"p":27,"y":2023,"n":39},{"p":29,"y":2023,"n":15},{"p":30,"y":2023,"n":40},{"p":32,"y":2023,"n":27},{"p":33,"y":2023,"n":21},{"p":34,"y":2023,"n":40},{"p":3,"y":2024,"n":37},{"p":4,"y":2024,"n":17},{"p":5,"y":2024,"n":30},{"p":6,"y":2024,"n":30},{"p":7,"y":2024,"n":15},{"p":8,"y":2024,"n":8},{"p":10,"y":2024,"n":16},{"p":11,"y":2024,"n":29},{"p":12,"y":2024,"n":14},{"p":13,"y":2024,"n":30},{"p":14,"y":2024,"n":9},{"p":15,"y":2024,"n":32},{"p":16,"y":2024,"n":4},{"p":17,"y":2024,"n":26},{"p":22,"y":2024,"n":28},{"p":23,"y":2024,"n":17},{"p":25,"y":2024,"n":30},{"p":27,"y":2024,"n":23},{"p":30,"y":2024,"n":30},{"p":34,"y":2024,"n":31},{"p":3,"y":2025,"n":12},{"p":15,"y":2025,"n":7}],"timeline":[{"y":2005,"scope":"Dự toán HĐND quyết định","n":14088},{"y":2005,"scope":"Quyết toán ngân sách","n":13116},{"y":2006,"scope":"Dự toán HĐND quyết định","n":10894},{"y":2006,"scope":"Quyết toán ngân sách","n":13348},{"y":2007,"scope":"Dự toán HĐND quyết định","n":12868},{"y":2007,"scope":"Quyết toán ngân sách","n":11116},{"y":2008,"scope":"Dự toán HĐND quyết định","n":10679},{"y":2008,"scope":"Quyết toán ngân sách","n":31397},{"y":2009,"scope":"Dự toán HĐND quyết định","n":3963},{"y":2009,"scope":"Quyết toán ngân sách","n":8734},{"y":2010,"scope":"Dự toán HĐND quyết định","n":30916},{"y":2010,"scope":"Quyết toán ngân sách","n":8665},{"y":2011,"scope":"Dự toán HĐND quyết định","n":2676},{"y":2011,"scope":"Quyết toán ngân sách","n":23004},{"y":2012,"scope":"Dự toán HĐND quyết định","n":5394},{"y":2012,"scope":"Quyết toán ngân sách","n":30683},{"y":2013,"scope":"Dự toán HĐND quyết định","n":37051},{"y":2013,"scope":"Quyết toán ngân sách","n":52521},{"y":2014,"scope":"Dự toán HĐND quyết định","n":47117},{"y":2014,"scope":"Quyết toán ngân sách","n":42202},{"y":2015,"scope":"Dự toán HĐND quyết định","n":39066},{"y":2015,"scope":"Quyết toán ngân sách","n":42437},{"y":2016,"scope":"Dự toán HĐND quyết định","n":26118},{"y":2016,"scope":"Quyết toán ngân sách","n":21309},{"y":2017,"scope":"Dự toán HĐND quyết định","n":17406},{"y":2017,"scope":"Quyết toán ngân sách","n":134340},{"y":2018,"scope":"Dự toán HĐND quyết định","n":249545},{"y":2018,"scope":"Dự toán trình HĐND","n":114192},{"y":2018,"scope":"Quyết toán ngân sách","n":177150},{"y":2018,"scope":"Tình hình thực hiện dự toán","n":24484},{"y":2018,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":94},{"y":2018,"scope":"Tổng hợp tình hình thực hiện Quyết Toán","n":3322},{"y":2019,"scope":"Dự toán HĐND quyết định","n":190624},{"y":2019,"scope":"Dự toán trình HĐND","n":116124},{"y":2019,"scope":"Quyết toán ngân sách","n":119163},{"y":2019,"scope":"Tình hình thực hiện dự toán","n":34396},{"y":2019,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":349},{"y":2019,"scope":"Tổng hợp tình hình thực hiện Quyết Toán","n":11541},{"y":2020,"scope":"Dự toán HĐND quyết định","n":187422},{"y":2020,"scope":"Dự toán trình HĐND","n":166420},{"y":2020,"scope":"Quyết toán ngân sách","n":165873},{"y":2020,"scope":"Tình hình thực hiện dự toán","n":31868},{"y":2020,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":262},{"y":2020,"scope":"Tổng hợp tình hình thực hiện Quyết Toán","n":1684},{"y":2021,"scope":"Dự toán HĐND quyết định","n":266839},{"y":2021,"scope":"Dự toán trình HĐND","n":129423},{"y":2021,"scope":"Quyết toán ngân sách","n":112988},{"y":2021,"scope":"Tình hình thực hiện dự toán","n":31383},{"y":2021,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":26159},{"y":2021,"scope":"Tổng hợp tình hình thực hiện Quyết Toán","n":2415},{"y":2022,"scope":"Dự toán HĐND quyết định","n":219980},{"y":2022,"scope":"Dự toán trình HĐND","n":154031},{"y":2022,"scope":"Quyết toán ngân sách","n":27993},{"y":2022,"scope":"Tình hình thực hiện dự toán","n":30810},{"y":2022,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":2693},{"y":2022,"scope":"Tổng hợp tình hình thực hiện Quyết Toán","n":2223},{"y":2023,"scope":"Dự toán HĐND quyết định","n":136412},{"y":2023,"scope":"Dự toán trình HĐND","n":129679},{"y":2023,"scope":"Quyết toán ngân sách","n":6765},{"y":2023,"scope":"Tình hình thực hiện dự toán","n":24071},{"y":2023,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":2364},{"y":2024,"scope":"Dự toán HĐND quyết định","n":108355},{"y":2024,"scope":"Dự toán trình HĐND","n":105699},{"y":2024,"scope":"Tình hình thực hiện dự toán","n":4679},{"y":2024,"scope":"Tổng hợp tình hình thực hiện Dự Toán","n":2543},{"y":2025,"scope":"Dự toán trình HĐND","n":1302}],"method":[{"p":1,"m":"PARSE_FAILED","n":8},{"p":1,"m":"XLSX","n":48},{"p":1,"m":"XML","n":147},{"p":2,"m":"PARSE_FAILED","n":19},{"p":2,"m":"PENDING_PDF_DOC","n":10},{"p":2,"m":"XLSX","n":58},{"p":2,"m":"XML","n":205},{"p":3,"m":"PARSE_FAILED","n":8},{"p":3,"m":"PENDING_PDF_DOC","n":14},{"p":3,"m":"XLSX","n":87},{"p":3,"m":"XML","n":255},{"p":4,"m":"PARSE_FAILED","n":16},{"p":4,"m":"PENDING_PDF_DOC","n":11},{"p":4,"m":"XLSX","n":90},{"p":4,"m":"XML","n":175},{"p":5,"m":"PARSE_FAILED","n":2},{"p":5,"m":"PENDING_PDF_DOC","n":12},{"p":5,"m":"XLSX","n":75},{"p":5,"m":"XML","n":216},{"p":6,"m":"PARSE_FAILED","n":1},{"p":6,"m":"PENDING_PDF_DOC","n":6},{"p":6,"m":"XLSX","n":94},{"p":6,"m":"XML","n":242},{"p":7,"m":"PARSE_FAILED","n":6},{"p":7,"m":"PENDING_PDF_DOC","n":11},{"p":7,"m":"XLSX","n":52},{"p":7,"m":"XML","n":156},{"p":8,"m":"PARSE_FAILED","n":5},{"p":8,"m":"PENDING_PDF_DOC","n":11},{"p":8,"m":"XLSX","n":70},{"p":8,"m":"XML","n":218},{"p":9,"m":"PARSE_FAILED","n":9},{"p":9,"m":"PENDING_PDF_DOC","n":10},{"p":9,"m":"XLSX","n":67},{"p":9,"m":"XML","n":180},{"p":10,"m":"PENDING_NO_FILE","n":1},{"p":10,"m":"PENDING_PDF_DOC","n":1},{"p":10,"m":"XLSX","n":56},{"p":10,"m":"XML","n":172},{"p":11,"m":"PARSE_FAILED","n":19},{"p":11,"m":"PENDING_PDF_DOC","n":10},{"p":11,"m":"XLSX","n":68},{"p":11,"m":"XML","n":233},{"p":12,"m":"PARSE_FAILED","n":3},{"p":12,"m":"PENDING_NO_FILE","n":1},{"p":12,"m":"PENDING_PDF_DOC","n":10},{"p":12,"m":"XLSX","n":66},{"p":12,"m":"XML","n":98},{"p":13,"m":"PENDING_NO_FILE","n":15},{"p":13,"m":"PENDING_PDF_DOC","n":15},{"p":13,"m":"XLSX","n":70},{"p":13,"m":"XML","n":239},{"p":14,"m":"PARSE_FAILED","n":16},{"p":14,"m":"PENDING_PDF_DOC","n":8},{"p":14,"m":"XLSX","n":35},{"p":14,"m":"XML","n":134},{"p":15,"m":"PARSE_FAILED","n":3},{"p":15,"m":"PENDING_PDF_DOC","n":2},{"p":15,"m":"XLSX","n":61},{"p":15,"m":"XML","n":235},{"p":16,"m":"PARSE_FAILED","n":2},{"p":16,"m":"PENDING_PDF_DOC","n":12},{"p":16,"m":"XLSX","n":69},{"p":16,"m":"XML","n":198},{"p":17,"m":"PARSE_FAILED","n":4},{"p":17,"m":"PENDING_PDF_DOC","n":7},{"p":17,"m":"XLSX","n":67},{"p":17,"m":"XML","n":193},{"p":18,"m":"PARSE_FAILED","n":2},{"p":18,"m":"PENDING_NO_FILE","n":1},{"p":18,"m":"PENDING_PDF_DOC","n":9},{"p":18,"m":"XLSX","n":75},{"p":18,"m":"XML","n":194},{"p":19,"m":"PARSE_FAILED","n":18},{"p":19,"m":"PENDING_NO_FILE","n":3},{"p":19,"m":"PENDING_PDF_DOC","n":6},{"p":19,"m":"XLSX","n":65},{"p":19,"m":"XML","n":199},{"p":20,"m":"PARSE_FAILED","n":9},{"p":20,"m":"PENDING_PDF_DOC","n":8},{"p":20,"m":"XLSX","n":65},{"p":20,"m":"XML","n":177},{"p":21,"m":"PARSE_FAILED","n":5},{"p":21,"m":"PENDING_PDF_DOC","n":8},{"p":21,"m":"XLSX","n":33},{"p":21,"m":"XML","n":78},{"p":22,"m":"PARSE_FAILED","n":2},{"p":22,"m":"PENDING_PDF_DOC","n":10},{"p":22,"m":"XLSX","n":86},{"p":22,"m":"XML","n":223},{"p":23,"m":"PARSE_FAILED","n":5},{"p":23,"m":"PENDING_NO_FILE","n":1},{"p":23,"m":"PENDING_PDF_DOC","n":8},{"p":23,"m":"XLSX","n":70},{"p":23,"m":"XML","n":141},{"p":24,"m":"PARSE_FAILED","n":1},{"p":24,"m":"XLSX","n":29},{"p":24,"m":"XML","n":26},{"p":25,"m":"PARSE_FAILED","n":7},{"p":25,"m":"PENDING_PDF_DOC","n":11},{"p":25,"m":"XLSX","n":82},{"p":25,"m":"XML","n":230},{"p":26,"m":"PARSE_FAILED","n":23},{"p":26,"m":"PENDING_NO_FILE","n":2},{"p":26,"m":"PENDING_PDF_DOC","n":9},{"p":26,"m":"XLSX","n":55},{"p":26,"m":"XML","n":204},{"p":27,"m":"PARSE_FAILED","n":7},{"p":27,"m":"PENDING_PDF_DOC","n":10},{"p":27,"m":"XLSX","n":56},{"p":27,"m":"XML","n":174},{"p":28,"m":"PENDING_NO_FILE","n":2},{"p":28,"m":"XLSX","n":37},{"p":28,"m":"XML","n":67},{"p":29,"m":"PARSE_FAILED","n":4},{"p":29,"m":"XLSX","n":80},{"p":29,"m":"XML","n":179},{"p":30,"m":"PARSE_FAILED","n":3},{"p":30,"m":"PENDING_PDF_DOC","n":13},{"p":30,"m":"XLSX","n":75},{"p":30,"m":"XML","n":202},{"p":31,"m":"PARSE_FAILED","n":12},{"p":31,"m":"PENDING_PDF_DOC","n":6},{"p":31,"m":"XLSX","n":41},{"p":31,"m":"XML","n":140},{"p":32,"m":"PARSE_FAILED","n":6},{"p":32,"m":"XLSX","n":21},{"p":32,"m":"XML","n":27},{"p":33,"m":"PARSE_FAILED","n":10},{"p":33,"m":"XLSX","n":59},{"p":33,"m":"XML","n":194},{"p":34,"m":"PARSE_FAILED","n":3},{"p":34,"m":"PENDING_NO_FILE","n":1},{"p":34,"m":"PENDING_PDF_DOC","n":14},{"p":34,"m":"XLSX","n":95},{"p":34,"m":"XML","n":225}],"volume":[{"p":1,"rows_n":52094,"vnd_n":32131},{"p":2,"rows_n":109945,"vnd_n":38813},{"p":3,"rows_n":177982,"vnd_n":110014},{"p":4,"rows_n":135207,"vnd_n":71533},{"p":5,"rows_n":183183,"vnd_n":111828},{"p":6,"rows_n":150216,"vnd_n":56088},{"p":7,"rows_n":99985,"vnd_n":52872},{"p":8,"rows_n":131465,"vnd_n":68354},{"p":9,"rows_n":113779,"vnd_n":44717},{"p":10,"rows_n":351329,"vnd_n":214765},{"p":11,"rows_n":153493,"vnd_n":102417},{"p":12,"rows_n":90959,"vnd_n":44819},{"p":13,"rows_n":123660,"vnd_n":72525},{"p":14,"rows_n":48338,"vnd_n":24266},{"p":15,"rows_n":89752,"vnd_n":39427},{"p":16,"rows_n":82605,"vnd_n":29245},{"p":17,"rows_n":126808,"vnd_n":63558},{"p":18,"rows_n":113262,"vnd_n":56396},{"p":19,"rows_n":104483,"vnd_n":55544},{"p":20,"rows_n":158046,"vnd_n":104419},{"p":21,"rows_n":32396,"vnd_n":19461},{"p":22,"rows_n":242915,"vnd_n":102684},{"p":23,"rows_n":87476,"vnd_n":46511},{"p":24,"rows_n":14380,"vnd_n":9168},{"p":25,"rows_n":108951,"vnd_n":60585},{"p":26,"rows_n":95829,"vnd_n":30658},{"p":27,"rows_n":128034,"vnd_n":96472},{"p":28,"rows_n":24917,"vnd_n":7348},{"p":29,"rows_n":90673,"vnd_n":52051},{"p":30,"rows_n":82642,"vnd_n":45690},{"p":31,"rows_n":84432,"vnd_n":40050},{"p":32,"rows_n":15080,"vnd_n":6639},{"p":33,"rows_n":80773,"vnd_n":46003},{"p":34,"rows_n":129338,"vnd_n":35932}],"units":[{"u":"Triệu đồng","f":1000000,"n":2621055},{"u":"%","f":0,"n":156467},{"u":"triệu đồng","f":1000000,"n":156434},{"u":"đồng","f":1,"n":65875},{"u":"Đồng","f":1,"n":65597},{"u":"% (phần trăm)","f":0,"n":2741},{"u":"tỷ đồng","f":1000000000,"n":2733},{"u":"1.000 đồng","f":1000,"n":540},{"u":"Tỷ đồng","f":1000000000,"n":439},{"u":"1.000.000 đồng","f":1000000,"n":401},{"u":"Triệu dồng","f":0,"n":347},{"u":"Phần trăm (%)","f":0,"n":280},{"u":"Tiệu đồng","f":0,"n":166},{"u":"%(phần trăm)","f":0,"n":165},{"u":"Nghìn đồng","f":1000,"n":160},{"u":"đơn vị","f":0,"n":159},{"u":"dự án","f":0,"n":155},{"u":"Tr đồng","f":0,"n":122},{"u":"1000 đồng","f":1000,"n":98},{"u":"Triệu đổng","f":0,"n":25},{"u":"Công an tỉnh","f":0,"n":6}],"pending":[{"m":"PENDING_PDF_DOC","n":262},{"m":"PARSE_FAILED","n":238},{"m":"PENDING_NO_FILE","n":27}],"formats":[{"f":"doc,pdf,xls,xml","n":1057},{"f":"xls","n":911},{"f":"doc,pdf,xlsx,xml","n":893},{"f":"xlsx,xml","n":832},{"f":"docx,pdf,xls,xml","n":788},{"f":"docx,pdf,xlsx,xml","n":777},{"f":"xls,xml","n":727},{"f":"pdf,xlsx,xml","n":455},{"f":"doc,pdf,xls","n":249},{"f":"pdf,xls,xml","n":248},{"f":"docx,pdf,xlsx","n":241},{"f":"doc,pdf,xlsx","n":240},{"f":"docx,pdf,xls","n":193},{"f":"doc,xls,xml","n":149}],"topind":[{"label":"TỔNG SỐ","n":33228,"vnd_n":22368},{"label":"Thực hiện dự án","n":19638,"vnd_n":18380},{"label":"Chi đầu tư phát triển","n":13614,"vnd_n":9145},{"label":"Sở Y tế","n":12990,"vnd_n":7763},{"label":"Chi thường xuyên","n":12636,"vnd_n":8115},{"label":"Dự phòng ngân sách","n":11936,"vnd_n":5765},{"label":"Dự án chuyển tiếp","n":11768,"vnd_n":9360},{"label":"Chi bổ sung quỹ dự trữ tài chính","n":11429,"vnd_n":5908},{"label":"Sở Nội vụ","n":10605,"vnd_n":6415},{"label":"Sở Xây dựng","n":10389,"vnd_n":6109},{"label":"Chi trả nợ lãi các khoản do chính quyền địa phương vay","n":9784,"vnd_n":4318},{"label":"Chi khoa học và công nghệ","n":9491,"vnd_n":4362},{"label":"Chi giáo dục - đào tạo và dạy nghề","n":9456,"vnd_n":4807},{"label":"Lệ phí trước bạ","n":8960,"vnd_n":5537},{"label":"Sở Tư pháp","n":8958,"vnd_n":5163},{"label":"Sở Tài chính","n":8917,"vnd_n":4837},{"label":"Thu nội địa","n":8844,"vnd_n":4981},{"label":"Thu khác ngân sách","n":8705,"vnd_n":5389},{"label":"Thuế thu nhập cá nhân","n":8618,"vnd_n":5029},{"label":"TỔNG CHI NSĐP","n":8461,"vnd_n":4807},{"label":"Sở Giáo dục và Đào tạo","n":8103,"vnd_n":5035},{"label":"Sở Kế hoạch và Đầu tư","n":7886,"vnd_n":4612},{"label":"Thu tiền sử dụng đất","n":7727,"vnd_n":4814},{"label":"Sở Thông tin và Truyền thông","n":7570,"vnd_n":4397},{"label":"Sở Tài nguyên và Môi trường","n":7264,"vnd_n":4315}],"periods":[{"kind":"Năm","n":3679000},{"kind":"Quý","n":46027},{"kind":"6 tháng","n":44858},{"kind":"9 tháng","n":44542}]}</script>
+<script>
+const D = JSON.parse(document.getElementById('payload').textContent);
+const fmt = n => n.toLocaleString('vi-VN');
+const compact = n => n >= 1e6 ? (n/1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.',',') + ' triệu'
+                  : n >= 1e3 ? fmt(Math.round(n/1e3)) + ' nghìn' : String(n);
+const PN = Object.fromEntries(D.provinces.map(p => [p.id, p.name]));
+const SVG = 'http://www.w3.org/2000/svg';
+const el = (t, a={}) => { const n = document.createElementNS(SVG, t);
+  for (const k in a) n.setAttribute(k, a[k]); return n; };
+
+/* ---------- tooltip ---------- */
+const tip = document.getElementById('tip');
+function showTip(e, html){
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8)  x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+}
+const hideTip = () => tip.style.opacity = 0;
+function bind(node, html){
+  node.addEventListener('mousemove', e => showTip(e, html));
+  node.addEventListener('mouseleave', hideTip);
+  node.addEventListener('focus', e => showTip({clientX:node.getBoundingClientRect().left,
+    clientY:node.getBoundingClientRect().bottom}, html));
+  node.addEventListener('blur', hideTip);
+}
+
+/* ---------- KPI ---------- */
+const k = D.kpi;
+const parsed = k.reports - k.pending;
+document.getElementById('kpis').innerHTML = [
+  [fmt(k.rows_total), 'dòng dữ liệu', 'một dòng = một ô số liệu có nguồn'],
+  [String(k.provinces), 'tỉnh/thành', 'toàn bộ 34 đơn vị hiện hành'],
+  [fmt(k.reports), 'báo cáo', `${fmt(parsed)} trích được dữ liệu`],
+  [String(k.years), 'năm ngân sách', '2005 – 2025'],
+  [fmt(k.vnd_rows), 'giá trị quy ra VND', `${Math.round(k.vnd_rows/k.rows_total*100)}% số dòng`],
+].map(([b,s,i]) => `<div class="kpi"><b>${b}</b><span>${s}</span><i>${i}</i></div>`).join('');
+
+/* ---------- heatmap: province x year ---------- */
+(function(){
+  const years = [...new Set(D.heat.map(h => h.y))].sort();
+  const provs = D.provinces.slice().sort((a,b) => a.name.localeCompare(b.name,'vi'));
+  const byKey = new Map(D.heat.map(h => [h.p+':'+h.y, h.n]));
+  const max = Math.max(...D.heat.map(h => h.n));
+  const steps = ['--q1','--q2','--q3','--q4','--q5','--q6'];
+  const bucket = n => n === 0 ? null : Math.min(steps.length-1, Math.floor(Math.sqrt(n/max)*steps.length));
+  const CW = 20, CH = 18, L = 128, T = 26;
+  const w = L + years.length*CW + 8, h = T + provs.length*CH + 6;
+  const svg = document.getElementById('heat');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('width', w); svg.setAttribute('height', h);
+  svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Lưới số báo cáo theo tỉnh và năm');
+
+  years.forEach((y,i) => { if (y % 5 === 0 || i === years.length-1) {
+    const t = el('text', {x:L+i*CW+CW/2, y:T-9, 'text-anchor':'middle'});
+    t.textContent = y; svg.appendChild(t); }});
+
+  provs.forEach((p,r) => {
+    const lab = el('text', {x:L-9, y:T+r*CH+CH/2+4, 'text-anchor':'end', fill:'var(--ink2)'});
+    lab.textContent = p.name; svg.appendChild(lab);
+    years.forEach((y,c) => {
+      const n = byKey.get(p.id+':'+y) || 0, b = bucket(n);
+      const cell = el('rect', {x:L+c*CW+1, y:T+r*CH+1, width:CW-2, height:CH-2, rx:3,
+        fill: b === null ? 'var(--zero)' : `var(${steps[b]})`, tabindex:0,
+        role:'img', 'aria-label':`${p.name} ${y}: ${n} báo cáo`});
+      bind(cell, `<b>${p.name}</b> · ${y}<br>${n ? fmt(n)+' báo cáo công bố' : '<em>không công bố báo cáo nào</em>'}`);
+      svg.appendChild(cell);
+    });
+  });
+  document.getElementById('heatramp').innerHTML =
+    '<span>ít</span>' + steps.map(s => `<u style="background:var(${s})"></u>`).join('') +
+    `<span>nhiều — tối đa ${max} báo cáo/năm</span>` +
+    `<u style="background:var(--zero);margin-left:12px"></u><span>không công bố</span>`;
+
+  const tb = document.getElementById('heattbl');
+  tb.innerHTML = '<thead><tr><th>Tỉnh/thành</th>' + years.map(y=>`<th>${y}</th>`).join('') +
+    '<th>Tổng</th></tr></thead><tbody>' + provs.map(p => {
+      const cells = years.map(y => byKey.get(p.id+':'+y) || 0);
+      return `<tr><td>${p.name}</td>${cells.map(n=>`<td>${n||''}</td>`).join('')}<td><b>${
+        cells.reduce((a,b)=>a+b,0)}</b></td></tr>`; }).join('') + '</tbody>';
+})();
+
+/* ---------- timeline: rows per year by scope ---------- */
+(function(){
+  const tot = {};
+  D.timeline.forEach(t => tot[t.scope] = (tot[t.scope]||0) + t.n);
+  const top = Object.entries(tot).sort((a,b) => b[1]-a[1]).slice(0,3).map(e => e[0]);
+  const SHORT = {'Dự toán trình HĐND':'Dự toán trình HĐND',
+                 'Dự toán HĐND quyết định':'Dự toán HĐND quyết định',
+                 'Quyết toán ngân sách':'Quyết toán ngân sách'};
+  const keys = [...top, 'Khác'];
+  const cols = ['var(--s1)','var(--s2)','var(--s3)','var(--axis)'];
+  const years = [...new Set(D.timeline.map(t => t.y))].sort();
+  const grid = new Map();
+  years.forEach(y => grid.set(y, Object.fromEntries(keys.map(k => [k,0]))));
+  D.timeline.forEach(t => { const k = top.includes(t.scope) ? t.scope : 'Khác';
+    grid.get(t.y)[k] += t.n; });
+  const totals = years.map(y => keys.reduce((a,k) => a + grid.get(y)[k], 0));
+  const max = Math.max(...totals);
+
+  const BW = 26, L = 84, T = 12, H = 210, B = 30;
+  const w = L + years.length*BW + 10, h = T + H + B;
+  const svg = document.getElementById('tl');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`); svg.setAttribute('width', w);
+  svg.setAttribute('height', h); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Số dòng dữ liệu theo năm, chia theo loại báo cáo');
+
+  [0,.25,.5,.75,1].forEach(f => {
+    const y = T + H - f*H;
+    svg.appendChild(el('line', {x1:L, x2:w-6, y1:y, y2:y,
+      stroke: f === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width':1}));
+    const t = el('text', {x:L-8, y:y+4, 'text-anchor':'end'});
+    t.textContent = f === 0 ? '0' : compact(Math.round(max*f)); svg.appendChild(t);
+  });
+
+  years.forEach((y,i) => {
+    let acc = 0;
+    keys.forEach((kk,ki) => {
+      const v = grid.get(y)[kk]; if (!v) return;
+      const hh = v/max*H, yy = T + H - acc - hh;
+      const r = el('rect', {x:L+i*BW+3, y:yy, width:BW-6, height:Math.max(1,hh-2), rx:3,
+        fill:cols[ki], tabindex:0, role:'img',
+        'aria-label':`${y} ${kk}: ${fmt(v)} dòng`});
+      bind(r, `<b>${y}</b> · ${kk}<br>${fmt(v)} dòng<br><em>cả năm: ${fmt(totals[i])} dòng</em>`);
+      svg.appendChild(r); acc += hh;
+    });
+    if (y % 5 === 0 || i === years.length-1) {
+      const t = el('text', {x:L+i*BW+BW/2, y:T+H+18, 'text-anchor':'middle'});
+      t.textContent = y; svg.appendChild(t);
+    }
+  });
+  document.getElementById('tllgd').innerHTML = keys.map((kk,i) =>
+    `<span><i style="background:${cols[i]}"></i>${SHORT[kk]||kk}</span>`).join('');
+
+  const tb = document.getElementById('tltbl');
+  tb.innerHTML = '<thead><tr><th>Năm</th>' + keys.map(kk=>`<th>${SHORT[kk]||kk}</th>`).join('') +
+    '<th>Tổng</th></tr></thead><tbody>' + years.map((y,i) =>
+    `<tr><td>${y}</td>${keys.map(kk=>`<td>${fmt(grid.get(y)[kk])}</td>`).join('')}<td><b>${
+      fmt(totals[i])}</b></td></tr>`).join('') + '</tbody>';
+})();
+
+/* ---------- method per province ---------- */
+(function(){
+  const per = new Map();
+  D.method.forEach(m => {
+    if (!per.has(m.p)) per.set(m.p, {XML:0, XLSX:0, pending:0});
+    const o = per.get(m.p);
+    if (m.m === 'XML' || m.m === 'XLSX') o[m.m] += m.n; else o.pending += m.n;
+  });
+  const rows = [...per.entries()].map(([p,o]) => ({p, ...o, tot:o.XML+o.XLSX+o.pending}))
+    .sort((a,b) => (b.XML/b.tot) - (a.XML/a.tot));
+  const keys = ['XML','XLSX','pending'];
+  const LBL = {XML:'XML (Thông tư 343)', XLSX:'Bảng tính xls/xlsx', pending:'Chưa trích được'};
+  const cols = ['var(--s1)','var(--s2)','var(--axis)'];
+
+  const RH = 19, L = 128, R = 58, T = 8, BARW = 420;
+  const w = L + BARW + R, h = T + rows.length*RH + 6;
+  const svg = document.getElementById('meth');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`); svg.setAttribute('width', w);
+  svg.setAttribute('height', h); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Tỉ lệ báo cáo đọc được theo từng tỉnh');
+
+  rows.forEach((r,i) => {
+    const y = T + i*RH;
+    const lab = el('text', {x:L-9, y:y+RH/2+4, 'text-anchor':'end', fill:'var(--ink2)'});
+    lab.textContent = PN[r.p]; svg.appendChild(lab);
+    let acc = 0;
+    keys.forEach((kk,ki) => {
+      const v = r[kk]; if (!v) return;
+      const ww = v/r.tot*BARW;
+      const rect = el('rect', {x:L+acc+1, y:y+2, width:Math.max(1,ww-2), height:RH-6, rx:3,
+        fill:cols[ki], tabindex:0, role:'img',
+        'aria-label':`${PN[r.p]} ${LBL[kk]}: ${v} báo cáo`});
+      bind(rect, `<b>${PN[r.p]}</b><br>${LBL[kk]}: ${v} / ${r.tot} báo cáo<br><em>${
+        Math.round(v/r.tot*100)}%</em>`);
+      svg.appendChild(rect); acc += ww;
+    });
+    const pct = el('text', {x:L+BARW+8, y:y+RH/2+4, fill:'var(--ink2)'});
+    pct.textContent = Math.round(r.XML/r.tot*100) + '% XML'; svg.appendChild(pct);
+  });
+  document.getElementById('methlgd').innerHTML = keys.map((kk,i) =>
+    `<span><i style="background:${cols[i]}"></i>${LBL[kk]}</span>`).join('');
+
+  const tb = document.getElementById('methtbl');
+  tb.innerHTML = '<thead><tr><th>Tỉnh/thành</th><th>XML</th><th>Bảng tính</th>' +
+    '<th>Chưa trích được</th><th>Tổng</th><th>% XML</th></tr></thead><tbody>' +
+    rows.map(r => `<tr><td>${PN[r.p]}</td><td>${r.XML}</td><td>${r.XLSX}</td><td>${
+      r.pending}</td><td>${r.tot}</td><td><b>${Math.round(r.XML/r.tot*100)}%</b></td></tr>`).join('') +
+    '</tbody>';
+})();
+
+/* ---------- units ---------- */
+(function(){
+  const us = D.units.slice(0,10);
+  const max = Math.max(...us.map(u => u.n));
+  const RH = 24, L = 150, R = 92, T = 6, BARW = 300;
+  const w = L + BARW + R, h = T + us.length*RH + 6;
+  const svg = document.getElementById('unit');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`); svg.setAttribute('width', w);
+  svg.setAttribute('height', h); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Số dòng theo đơn vị tính');
+  us.forEach((u,i) => {
+    const y = T + i*RH;
+    const lab = el('text', {x:L-9, y:y+RH/2+4, 'text-anchor':'end', fill:'var(--ink2)'});
+    lab.textContent = u.u.length > 20 ? u.u.slice(0,19)+'…' : u.u; svg.appendChild(lab);
+    const ww = Math.max(2, u.n/max*BARW);
+    const r = el('rect', {x:L, y:y+4, width:ww, height:RH-11, rx:3,
+      fill: u.f ? 'var(--s1)' : 'var(--axis)', tabindex:0, role:'img',
+      'aria-label':`${u.u}: ${fmt(u.n)} dòng`});
+    bind(r, `<b>${u.u}</b><br>${fmt(u.n)} dòng<br><em>${u.f
+      ? 'quy đổi ×'+fmt(u.f) : 'không quy đổi ra VND'}</em>`);
+    svg.appendChild(r);
+    const v = el('text', {x:L+ww+8, y:y+RH/2+4, fill:'var(--ink2)'});
+    v.textContent = compact(u.n); svg.appendChild(v);
+  });
+
+  // must end in a đồng-like word: /ông/ alone also matches "Công an tỉnh"
+  const noVnd = D.units.filter(u => !u.f && /(đồng|dồng|đổng|đông)$/i.test(u.u.trim()));
+  const lost = noVnd.reduce((a,u) => a+u.n, 0);
+  document.getElementById('qnote').innerHTML =
+    `<b>${fmt(lost)} dòng</b> mang đơn vị tiền tệ viết sai chính tả trong chính văn bản gốc — ` +
+    noVnd.map(u => `<code>${u.u}</code> (${fmt(u.n)})`).join(', ') +
+    ` — nên cố ý <b>để trống</b> cột quy đổi VND thay vì đoán. Thanh xám là các đơn vị ` +
+    `không quy đổi ra tiền: phần trăm, đơn vị đếm, và các lỗi chính tả trên.`;
+
+  const tb = document.getElementById('unittbl');
+  tb.innerHTML = '<thead><tr><th>Đơn vị tính</th><th>Số dòng</th><th>Hệ số quy đổi</th>' +
+    '</tr></thead><tbody>' + D.units.map(u =>
+    `<tr><td>${u.u}</td><td>${fmt(u.n)}</td><td>${u.f ? '×'+fmt(u.f) : '—'}</td></tr>`).join('') +
+    '</tbody>';
+})();
+
+/* ---------- footer ---------- */
+document.getElementById('foot2').innerHTML =
+  `<b>${fmt(k.pending)} báo cáo</b> chưa trích được dòng nào và đều được liệt kê kèm lý do ` +
+  `trong sheet <code>Pending_Review</code> của từng tỉnh: ` +
+  D.pending.map(p => `${p.n} ${({PENDING_PDF_DOC:'chỉ có PDF/DOC',
+    PARSE_FAILED:'lỗi đọc bảng', PENDING_NO_FILE:'không có file đính kèm'})[p.m] || p.m}`).join(' · ') +
+  `. Không báo cáo nào bị bỏ im lặng.`;
+</script>

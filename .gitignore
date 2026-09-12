@@ -5,6 +5,10 @@ work/
 # Filenames carry the run date, so a re-run adds a new set rather than replacing the old
 # one — prune old dates before committing if the LFS quota matters.
 
+# the SQLite warehouse is ~360 MB and is rebuilt from work/ by dashboard/etl.py.
+# dashboard/data.json (29 KB) is the committed extract the dashboard actually reads.
+data/
+
 # python
 .venv/
 __pycache__/
