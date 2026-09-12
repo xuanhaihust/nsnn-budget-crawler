@@ -33,6 +33,8 @@ cached by path, so a rebuild after a parser change takes seconds. Always use `.v
 | `output/` | Generated workbooks, one per province. |
 | `work/<Province>/` | `catalog.json`, `files.json`, and `raw/` — every downloaded source file. |
 | `pipeline/` | The code. `./nsnn` in the project root is the only entry point you need. |
+| `data/nsnn.db.xz` | The 3.8M-row SQLite warehouse, packed to 33 MB. `dashboard/db.py restore` unpacks it in ~13s. Ordinary git object, not LFS. |
+| `dashboard/` | `index.html` — a self-contained page over the warehouse. See `dashboard/README.md`. |
 
 `work/raw/` is the evidence trail: every row traces back to a stored file with a SHA-256.
 Do not delete it — a province is ~10–250 MB (it was ~900 MB before PDFs were skipped).
