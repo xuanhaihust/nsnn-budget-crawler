@@ -114,9 +114,9 @@ All 34 provinces rebuilt from the cached sources (no re-download), then swept en
 | Distinct `ĐVT` spellings | 129 | **21** |
 | Rows with a VND value | 1,969,683 | **1,992,983** |
 | Rows total | 3,814,427 | **3,814,427** |
-| Pending_Review entries | 500 | **500** |
+| Pending_Review entries | 500 | **500** (the coverage pass below then raises it to 527) |
 
-Row count and Pending_Review are unchanged, which is the point: these fixes correct the unit
+Row count and Pending_Review are unchanged here, which is the point: these fixes correct the unit
 and conversion columns without adding, losing, or reclassifying a single row. The VND count
 rises by 23,300 because conversions that were wrongly missing are now present.
 
@@ -135,21 +135,54 @@ Every surviving `ĐVT` value and the factor applied to it:
       122  none        Tr đồng   (abbrev)   25  none        Triệu đổng   (typo)
 ```
 
+## Coverage fixes in the same pass
+
+Three of the open items from the first draft of this note were closed rather than left standing.
+
+**Reports that published no attachment at all are no longer dropped.** `build.py` skipped them
+with `if not atts: continue`, so 27 catalog reports across the 34 provinces reached neither
+`Data` nor `Pending_Review` — a quiet drop, which the rules forbid. They now land in
+`Pending_Review` under a new method `PENDING_NO_FILE`, counted separately in `Summary_QA`.
+
+**Every pending entry now carries a reason.** A report that yielded nothing previously reached
+`Pending_Review` with an empty error cell, so there was no way to tell a broken parser from a
+genuinely empty sheet. Each outcome now names itself:
+
+| Method | Reason written into the sheet |
+|---|---|
+| `PENDING_NO_FILE` | the catalog lists this report with no attachment at all |
+| `PENDING_PDF_DOC` | only non-machine-readable formats published (`doc,pdf`) |
+| `PARSE_FAILED` | a machine-readable attachment is listed but was not downloaded |
+| `PARSE_FAILED` | parsed N machine-readable file(s) without error but found no table rows |
+| `PARSE_FAILED` | the exception, when one was raised |
+
+**`.rar` attachments are not a coverage gap.** 16 archive attachments exist (Cà Mau 10,
+Khánh Hoà 6) plus 3 `.crdownload` partials in TP Hồ Chí Minh. Khánh Hoà names its archives
+after TT343 form codes, which looked alarming. Checked every one: **all 19 reports also publish
+an XML or XLSX sibling**, so nothing is lost by never opening them. No work needed.
+
+After these changes, across all 34 provinces:
+
+| | Before | After |
+|---|---|---|
+| Catalog reports tracked in neither sheet | 27 | **0** |
+| Reports tracked | 8,633 | **8,660** |
+| Pending_Review entries | 500 | **527** |
+| Pending entries with an empty reason | 238 | **0** |
+| Rows | 3,814,427 | **3,814,427** |
+
+Method breakdown: XML 5,976 · XLSX 2,157 · PARSE_FAILED 238 · PENDING_PDF_DOC 262 ·
+PENDING_NO_FILE 27.
+
 ## Still open
 
-Not defects introduced here, but real and unresolved:
-
-1. **635 rows carry a misspelled currency unit** and are left without a VND conversion, as
-   described above. Fixing them needs a decision from the project owner about whether
-   normalising an obvious misspelling counts as inferring a value.
-2. **27 catalog reports across the 34 provinces publish no attachment at all.** `build.py`
-   skips them (`if not atts: continue`), so they appear in neither `Data` nor `Pending_Review`.
-   This predates this work and arguably breaks *never quietly drop a failed report* — but
-   whether an attachment-less catalog entry is a "failed report" is the owner's call.
-3. **Reports that parse to zero rows without raising.** A spreadsheet that yields nothing
-   reaches `Pending_Review` as `PARSE_FAILED` with an empty error cell, which hides whether the
-   parser failed or the sheet was genuinely empty. The BIFF-detection fix removed one large
-   class of these; others remain and deserve a real reason string.
-4. **`.rar` (10) and `.crdownload` (3) attachments are never opened.** A `.rar` could hold XML
-   or XLSX, which would be a coverage gap rather than a parsing one.
-5. The ~50-record server gap and the Ministry-layer-only scope limit are unchanged.
+1. **635 rows carry a misspelled currency unit** — `Triệu dồng` (347), `Tiệu đồng` (166),
+   `Tr đồng` (122), `Triệu đổng` (25) — and are left without a VND conversion. A human reads
+   them instantly, but repairing them is guessing, and `never infer a value when the unit is
+   unclear` forbids it. Whether an obvious misspelling should be normalised is the project
+   owner's call, not the pipeline's.
+2. **238 reports still parse to zero rows.** They now say why, which makes them diagnosable
+   rather than invisible, but they are not yet recovered. The largest group parses without
+   raising and finds no table — worth attacking next, the same way the BIFF misdetection was.
+3. The ~50-record server gap and the Ministry-layer-only scope limit are unchanged by any of
+   this work.
