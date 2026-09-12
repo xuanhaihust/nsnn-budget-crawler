@@ -67,6 +67,30 @@ HDR_KEY = ('stt', 'nội dung', 'noi dung', 'chỉ tiêu', 'chi tieu')
 RE_IDX = re.compile(r'^(số\s*)?(stt|tt)\.?$', re.I)
 RE_LBL = re.compile(r'(nội dung|noi dung|chỉ tiêu|chi tieu|danh mục|danh muc|tên\s|ten\s|đơn vị sử dụng|khoản mục)', re.I)
 
+def find_unit(grid):
+    """Find the sheet's unit, matching one CELL at a time.
+
+    Matching a whole flattened row lets RE_UNIT's (.+) run past the unit and swallow every
+    later cell, because a row is joined with spaces and cell boundaries are then invisible.
+    A real case: a row holding "Đơn vị tính: %", "Đơn vị: Triệu đồng", "Đơn vị: Triệu đồng"
+    in three separate cells flattened to one string whose capture was
+    "%  Đơn vị: Triệu đồng   Đơn vị: Triệu đồng" - which then resolved to a currency and put
+    a VND value on a percentage table. Bounding the capture to its own cell yields "%".
+    """
+    for r in grid[:60]:
+        for i, c in enumerate(r):
+            m = RE_UNIT.search(c or '')
+            if not m:
+                continue
+            u = m.group(1).strip()
+            if u:
+                return u
+            for nxt in r[i + 1:]:      # "Đơn vị tính:" and its value in separate cells
+                if (nxt or '').strip():
+                    return nxt.strip()
+    return ''
+
+
 def is_header_row(r):
     cells = [(c or '').strip() for c in r]
     if sum(1 for c in cells if c) < 3: return False
@@ -78,9 +102,9 @@ def rows_from(path, rec, province):
                 if a['FileName'].lower().endswith(('.xls', '.xlsx'))), '')
     for _, grid in sheet_rows(path):
         flat = [' '.join(r) for r in grid]
-        unit = form = qd = ''
+        form = qd = ''
+        unit = find_unit(grid)
         for line in flat[:14] + flat[14:60]:
-            if not unit and (m := RE_UNIT.search(line)): unit = m.group(1).strip()
             if not form and (m := RE_FORM.search(line)): form = m.group(1).strip()
             if not qd   and (m := RE_QD.search(line)):   qd = m.group(2).strip()
         hdr_i = next((i for i, r in enumerate(grid[:20]) if is_header_row(r)), None)

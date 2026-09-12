@@ -12,10 +12,16 @@ def clean_unit(u):
     return u
 
 def unit_factor(u):
-    """Longest unit name wins: 'triệu đồng' must not match the 'đồng' suffix."""
+    """Longest unit name wins: 'triệu đồng' must not match the 'đồng' suffix.
+
+    Returns None when the unit is unknown OR ambiguous. A string naming both a percentage
+    and a currency ("Đơn vị tính: % ... Đơn vị: Triệu đồng") cannot tell us which applies to
+    a given row, and the rules forbid inferring one: leave Quy đổi VND empty instead.
+    """
     u = clean_unit(u).lower()
     for k in sorted(UNIT_VND, key=len, reverse=True):
-        if u == k or u.startswith(k + ' ') or u.endswith(' ' + k): return UNIT_VND[k]
+        if u == k or u.startswith(k + ' ') or u.endswith(' ' + k):
+            return None if '%' in u else UNIT_VND[k]
     return None
 
 NUM = re.compile(r'^-?[\d., ]+$')
