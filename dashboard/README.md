@@ -12,10 +12,10 @@ xlsx, one file per province, no way to ask a question across them. So the pipeli
 one more stage, and the dashboard reads the end of it rather than the workbooks.
 
 ```
-work/<province>/          →  ETL  →  data/nsnn.db  →  aggregate  →  dashboard/data.json
-cached source files           3.8M rows, 360 MB        GROUP BY        29 KB
-                                (not committed)                            ↓
-                                                              build_html → index.html
+work/<province>/     →  ETL  →  data/nsnn.db  →  aggregate  →  dashboard/data.json
+cached sources          3.8M rows, 352 MB         GROUP BY          29 KB
+                             ↕  db.py pack/restore                     ↓
+                        data/nsnn.db.xz  33 MB, committed   build_html → index.html
 ```
 
 **SQLite for the warehouse.** A single file, no server, and the whole corpus fits in one
@@ -36,13 +36,21 @@ Pages and inside a sandboxed frame. A `fetch()` fails in at least one of those, 
 ## Rebuild
 
 ```bash
-.venv/bin/python dashboard/etl.py         # work/ -> data/nsnn.db      (~6 min)
+.venv/bin/python dashboard/db.py restore  # nsnn.db.xz -> nsnn.db      (~13 s)  ← usually this
+.venv/bin/python dashboard/etl.py         # work/ -> data/nsnn.db      (~6 min, needs work/)
 .venv/bin/python dashboard/aggregate.py   # nsnn.db -> data.json       (~10 s)
 .venv/bin/python dashboard/build_html.py  # data.json -> index.html    (instant)
+.venv/bin/python dashboard/db.py pack     # nsnn.db -> nsnn.db.xz      (~93 s)
 ```
 
 `etl.py` calls `pipeline/build.py` directly rather than reading the xlsx files, so the
-warehouse always reflects the current parsers.
+warehouse always reflects the current parsers. It needs `work/` — the cached sources — so
+after a fresh clone `db.py restore` is the route in, not `etl.py`.
+
+`Quy đổi VND` is not a stored column: it is exactly `value * dim_unit.factor`, and `factor`
+is `0` in precisely the cases where the parser leaves the conversion blank. The `v_fact`
+view derives it, which keeps the rule in one place and takes 30 MB of duplicated floats out
+of the file. The view reproduces all 1,992,983 converted values in the workbooks exactly.
 
 ## Querying the warehouse
 

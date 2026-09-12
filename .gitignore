@@ -5,9 +5,11 @@ work/
 # Filenames carry the run date, so a re-run adds a new set rather than replacing the old
 # one — prune old dates before committing if the LFS quota matters.
 
-# the SQLite warehouse is ~360 MB and is rebuilt from work/ by dashboard/etl.py.
-# dashboard/data.json (29 KB) is the committed extract the dashboard actually reads.
-data/
+# data/nsnn.db.xz IS committed (33 MB, an ordinary git object - it does not touch the
+# LFS quota). The 352 MB uncompressed database is not: `dashboard/db.py restore` unpacks
+# it and rebuilds the indexes in ~13 s.
+data/nsnn.db
+data/*.packing
 
 # python
 .venv/
