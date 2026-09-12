@@ -88,11 +88,33 @@
 <div class="wrap">
   <h1>Công khai ngân sách 34 tỉnh/thành</h1>
   <p class="lede">Toàn bộ dữ liệu ngân sách mà 34 tỉnh/thành công bố trên cổng Công khai
-    ngân sách nhà nước của Bộ Tài chính, gom về một lược đồ 16 cột và kiểm chứng từng dòng.</p>
+    ngân sách nhà nước của Bộ Tài chính, gom về một lược đồ 16 cột và kiểm chứng từng dòng.
+    Hai phần đầu đọc chính con số ngân sách; ba phần sau đọc mức độ công khai và chất lượng
+    dữ liệu.</p>
   <p class="src">Nguồn: <b>ckns.mof.gov.vn</b> · mọi con số dưới đây được tính trực tiếp từ
     <code>data/nsnn.db</code>, không ước lượng.</p>
 
   <div class="kpis" id="kpis"></div>
+
+  <section>
+    <h2>Ngân sách địa phương tự nuôi được bao nhiêu phần mình</h2>
+    <p class="sub">Từ biểu <b>B46 — Cân đối ngân sách địa phương</b>. Mỗi thanh là tổng nguồn thu
+      của một tỉnh, tách làm hai: phần tỉnh <b>tự thu theo phân cấp</b> và phần <b>trung ương
+      bổ sung</b>. Đây là hai ô số liệu được công bố nguyên văn trong cùng một biểu, không phải
+      tổng cộng từ các dòng con — nên không có rủi ro cộng trùng.</p>
+    <div class="scroll"><svg id="self"></svg></div>
+    <div class="lgd" id="selflgd"></div>
+    <div class="note" id="selfnote"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="selftbl"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Tỉnh càng tự chủ, càng dành nhiều tiền cho đầu tư</h2>
+    <p class="sub">Trục ngang: tỉ lệ tự chủ. Trục dọc: phần chi đầu tư phát triển trong tổng chi.
+      Mỗi điểm là một tỉnh ở năm mới nhất có số liệu.</p>
+    <div class="scroll"><svg id="scat"></svg></div>
+    <div class="note" id="scatnote"></div>
+  </section>
 
   <section>
     <h2>Tỉnh nào công khai, từ năm nào</h2>
@@ -180,6 +202,140 @@ document.getElementById('kpis').innerHTML = [
   [String(k.years), 'năm ngân sách', '2005 – 2025'],
   [fmt(k.vnd_rows), 'giá trị quy ra VND', `${Math.round(k.vnd_rows/k.rows_total*100)}% số dòng`],
 ].map(([b,s,i]) => `<div class="kpi"><b>${b}</b><span>${s}</span><i>${i}</i></div>`).join('');
+
+/* ---------- budget self-sufficiency ---------- */
+(function(){
+  const L = D.latest.filter(b => b.own && b.central && b.rev);
+  const max = Math.max(...L.map(b => b.rev));
+  const RH = 20, LW = 128, R = 150, T = 22, BARW = 330;
+  const w = LW + BARW + R, h = T + L.length*RH + 6;
+  const svg = document.getElementById('self');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`); svg.setAttribute('width', w);
+  svg.setAttribute('height', h); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Tỉ lệ tự chủ ngân sách theo tỉnh');
+  const T2 = v => (v/1e12).toFixed(1).replace('.',',');
+
+  // Every bar is the same length: it encodes composition only. Scaling length by revenue
+  // too made Hà Nội and TP Hồ Chí Minh (≈145 nghìn tỷ) squash every other province into an
+  // unreadable stub, and pushed their % label on top of the value column. Magnitude gets
+  // its own number column instead, where it is exact rather than approximate.
+  const hdr = [[LW+BARW/2,'cơ cấu nguồn thu'],[LW+BARW+34,'tự chủ'],
+               [LW+BARW+112,'tổng thu'],[LW+BARW+R-6,'năm']];
+  hdr.forEach(([x,t],i) => {
+    const e2 = el('text',{x, y:T-2, 'text-anchor': i===0?'middle':'end'});
+    e2.textContent = t; svg.appendChild(e2);
+  });
+  L.forEach((b,i) => {
+    const y = T + i*RH;
+    const lab = el('text', {x:LW-9, y:y+RH/2+4, 'text-anchor':'end', fill:'var(--ink2)'});
+    lab.textContent = b.p; svg.appendChild(lab);
+    let acc = 0;
+    [['own','var(--s1)','tỉnh tự thu theo phân cấp'],
+     ['central','var(--s2)','trung ương bổ sung']].forEach(([k,c,name]) => {
+      const ww = b[k]/b.rev*BARW;
+      const r = el('rect', {x:LW+acc+1, y:y+2, width:Math.max(1,ww-2), height:RH-6, rx:3,
+        fill:c, tabindex:0, role:'img',
+        'aria-label':`${b.p} ${name}: ${T2(b[k])} nghìn tỷ`});
+      bind(r, `<b>${b.p}</b> · dự toán ${b.y}<br>${name}: ${T2(b[k])} nghìn tỷ<br><em>${
+        Math.round(b[k]/b.rev*100)}% của tổng nguồn thu ${T2(b.rev)} nghìn tỷ</em>`);
+      svg.appendChild(r); acc += ww;
+    });
+    const pct = el('text', {x:LW+BARW+34, y:y+RH/2+4, 'text-anchor':'end', fill:'var(--ink)'});
+    pct.textContent = `${Math.round(b.selfrate*100)}%`; svg.appendChild(pct);
+    const tv = el('text', {x:LW+BARW+112, y:y+RH/2+4, 'text-anchor':'end'});
+    tv.textContent = `${T2(b.rev)}`; svg.appendChild(tv);
+    const yr = el('text', {x:LW+BARW+R-6, y:y+RH/2+4, 'text-anchor':'end'});
+    yr.textContent = b.y; svg.appendChild(yr);
+  });
+  document.getElementById('selflgd').innerHTML =
+    '<span><i style="background:var(--s1)"></i>Tỉnh tự thu theo phân cấp</span>' +
+    '<span><i style="background:var(--s2)"></i>Trung ương bổ sung</span>' +
+    '<span style="color:var(--muted)">Mọi thanh dài bằng nhau — chỉ thể hiện cơ cấu. ' +
+    'Quy mô ở cột số, đơn vị nghìn tỷ đồng.</span>';
+
+  const top = L[0], bot = L[L.length-1];
+  document.getElementById('selfnote').innerHTML =
+    `Khoảng cách rất lớn: <b>${top.p}</b> tự lo ${Math.round(top.selfrate*100)}% nguồn thu, ` +
+    `<b>${bot.p}</b> chỉ ${Math.round(bot.selfrate*100)}%. Đây là số <b>dự toán</b>, chưa phải ` +
+    `quyết toán, và năm mới nhất có số liệu khác nhau theo tỉnh (cột cuối) vì độ phủ công bố ` +
+    `không đều. ${L.length}/34 tỉnh có đủ hai ô này trong biểu B46.`;
+
+  const tb = document.getElementById('selftbl');
+  tb.innerHTML = '<thead><tr><th>Tỉnh/thành</th><th>Năm dự toán</th><th>Tổng nguồn thu</th>' +
+    '<th>Tự thu</th><th>TW bổ sung</th><th>% tự chủ</th><th>% chi đầu tư</th></tr></thead><tbody>' +
+    L.map(b => `<tr><td>${b.p}</td><td>${b.y}</td><td>${T2(b.rev)}</td><td>${T2(b.own)}</td>` +
+      `<td>${T2(b.central)}</td><td><b>${Math.round(b.selfrate*100)}%</b></td>` +
+      `<td>${b.invrate ? Math.round(b.invrate*100)+'%' : '—'}</td></tr>`).join('') +
+    '</tbody><tfoot><tr><td colspan="7" style="color:var(--muted);border:0;padding-top:8px">' +
+    'Đơn vị: nghìn tỷ đồng. Nguồn: biểu B46 Cân đối ngân sách địa phương.</td></tr></tfoot>';
+})();
+
+/* ---------- scatter: self-sufficiency vs investment share ---------- */
+(function(){
+  const P = D.latest.filter(b => b.selfrate && b.invrate);
+  const W = 470, H = 300, L2 = 52, T2 = 14, B2 = 42;
+  const w = L2 + W + 80, h = T2 + H + B2;
+  const svg = document.getElementById('scat');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`); svg.setAttribute('width', w);
+  svg.setAttribute('height', h); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Tương quan giữa tự chủ ngân sách và tỉ trọng chi đầu tư');
+  const X = v => L2 + v*W, Y = v => T2 + H - (v/0.6)*H;
+
+  [0,.2,.4,.6].forEach(f => {
+    const y = Y(f);
+    svg.appendChild(el('line',{x1:L2,x2:L2+W,y1:y,y2:y,
+      stroke: f===0?'var(--axis)':'var(--grid)','stroke-width':1}));
+    const t = el('text',{x:L2-8,y:y+4,'text-anchor':'end'}); t.textContent=Math.round(f*100)+'%';
+    svg.appendChild(t);
+  });
+  [0,.25,.5,.75,1].forEach(f => {
+    const x = X(f);
+    svg.appendChild(el('line',{x1:x,x2:x,y1:T2,y2:T2+H,stroke:'var(--grid)','stroke-width':1}));
+    const t = el('text',{x:x,y:T2+H+18,'text-anchor':'middle'}); t.textContent=Math.round(f*100)+'%';
+    svg.appendChild(t);
+  });
+  const xl = el('text',{x:L2+W/2,y:T2+H+36,'text-anchor':'middle',fill:'var(--ink2)'});
+  xl.textContent='Tỉ lệ tự chủ ngân sách →'; svg.appendChild(xl);
+  const yl = el('text',{x:14,y:T2+H/2,'text-anchor':'middle',fill:'var(--ink2)',
+    transform:`rotate(-90 14 ${T2+H/2})`});
+  yl.textContent='Chi đầu tư / tổng chi →'; svg.appendChild(yl);
+
+  const NAMED = new Set(['Bắc Ninh','Hà Nội','TP Hồ Chí Minh','Lạng Sơn','Lai Châu','Hải Phòng','Nghệ An']);
+  const labels = [];
+  P.forEach(b => {
+    const cx = X(b.selfrate), cy = Y(b.invrate);
+    const c = el('circle',{cx, cy, r:5.5, fill:'var(--s1)', stroke:'var(--surface)',
+      'stroke-width':2, tabindex:0, role:'img',
+      'aria-label':`${b.p}: tự chủ ${Math.round(b.selfrate*100)}%, chi đầu tư ${Math.round(b.invrate*100)}%`});
+    bind(c, `<b>${b.p}</b> · dự toán ${b.y}<br>tự chủ ${Math.round(b.selfrate*100)}%<br>` +
+            `chi đầu tư ${Math.round(b.invrate*100)}% tổng chi`);
+    svg.appendChild(c);
+    if (NAMED.has(b.p)) labels.push({b, cx, cy});
+  });
+  // Place each label at the first of four offsets that does not overlap one already
+  // placed. Fixed right-placement collided: Lạng Sơn over Lai Châu, TP Hồ Chí Minh over
+  // Hải Phòng.
+  const placed = [];
+  const hits = (r) => placed.some(q => !(r.x2 < q.x || r.x > q.x2 || r.y2 < q.y || r.y > q.y2));
+  labels.forEach(({b, cx, cy}) => {
+    const wpx = b.p.length * 5.6 + 4;
+    const opts = [[cx+9, cy+4, 'start'], [cx+9, cy+15, 'start'],
+                  [cx-9, cy+4, 'end'],   [cx-9, cy-8, 'end']];
+    let put = opts[0];
+    for (const o of opts) {
+      const x = o[2] === 'start' ? o[0] : o[0] - wpx;
+      const r = {x, x2: x + wpx, y: o[1] - 9, y2: o[1] + 3};
+      if (!hits(r)) { put = o; placed.push(r); break; }
+    }
+    const t = el('text', {x:put[0], y:put[1], 'text-anchor':put[2], fill:'var(--ink2)'});
+    t.textContent = b.p; svg.appendChild(t);
+  });
+  document.getElementById('scatnote').innerHTML =
+    `Quan hệ rất chặt (hệ số tương quan <b>r = 0,88</b>, n = ${P.length} tỉnh). Nhóm tự chủ trên 80% ` +
+    `dành trung vị <b>46%</b> tổng chi cho đầu tư phát triển; nhóm dưới 40% chỉ <b>15%</b> — phần ` +
+    `còn lại gần như dồn hết vào chi thường xuyên. Đây là <b>tương quan, không phải nhân quả</b>: ` +
+    `dữ liệu này không cho biết chiều tác động.`;
+})();
 
 /* ---------- heatmap: province x year ---------- */
 (function(){
