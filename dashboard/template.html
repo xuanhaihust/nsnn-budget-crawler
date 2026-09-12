@@ -4,7 +4,7 @@
     color-scheme: light;
     --plane:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
     --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
-    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
     --q1:#cde2fb; --q2:#9ec5f4; --q3:#6da7ec; --q4:#3987e5; --q5:#256abf; --q6:#104281;
     --zero:#efeee9;
     --good:#0ca30c; --warn:#fab219; --crit:#d03b3b;
@@ -14,7 +14,7 @@
       color-scheme: dark;
       --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
       --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
-      --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
       --q1:#104281; --q2:#184f95; --q3:#256abf; --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4;
       --zero:#232322;
     }
@@ -23,7 +23,7 @@
     color-scheme: dark;
     --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --q1:#104281; --q2:#184f95; --q3:#256abf; --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4;
     --zero:#232322;
   }
@@ -114,6 +114,72 @@
       Mỗi điểm là một tỉnh ở năm mới nhất có số liệu.</p>
     <div class="scroll"><svg id="scat"></svg></div>
     <div class="note" id="scatnote"></div>
+  </section>
+
+  <section>
+    <h2>Tiền ngân sách đến từ đâu</h2>
+    <p class="sub">Cơ cấu <b>thu nội địa</b> theo <b>quyết toán</b> (biểu B63) — số đã thực thu,
+      không phải dự kiến. Năm sáu khoản lớn nhất được tách riêng, phần còn lại gộp vào “khác”.</p>
+    <div class="scroll"><svg id="rev"></svg></div>
+    <div class="lgd" id="revlgd"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="revtbl"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Ngân sách phụ thuộc tiền bán đất đến mức nào</h2>
+    <p class="sub">Tiền sử dụng đất chia cho tổng thu nội địa. Đây là nguồn thu <b>một lần</b>:
+      bán rồi là hết, không lặp lại năm sau như thuế.</p>
+    <div class="scroll"><svg id="land"></svg></div>
+    <div class="note" id="landnote"></div>
+  </section>
+
+  <section>
+    <h2>Chi thường xuyên đi vào những lĩnh vực nào</h2>
+    <p class="sub">Cơ cấu chi thường xuyên cấp tỉnh theo lĩnh vực (biểu B50, dự toán).
+      Đây là phần chi vận hành bộ máy và dịch vụ công, tách khỏi chi đầu tư.</p>
+    <div class="scroll"><svg id="sect"></svg></div>
+    <div class="lgd" id="sectlgd"></div>
+    <div class="note" id="sectnote"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="secttbl"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Giáo dục và y tế chiếm bao nhiêu</h2>
+    <p class="sub">Hai lĩnh vực lớn nhất, tính theo tỉ trọng trong chi thường xuyên của từng tỉnh.</p>
+    <div class="scroll"><svg id="edu"></svg></div>
+    <div class="lgd" id="edulgd"></div>
+  </section>
+
+  <section>
+    <h2>Dự toán thu sát thực tế đến đâu</h2>
+    <p class="sub">Thu nội địa <b>thực thu</b> chia cho <b>dự toán</b> — cả hai đều là cột của
+      cùng biểu B63, nên không phải ghép từ hai nguồn. Trên 100% là thu vượt kế hoạch.</p>
+    <div class="scroll"><svg id="pa"></svg></div>
+    <div class="note" id="panote"></div>
+  </section>
+
+  <section>
+    <h2>Vay và trả nợ</h2>
+    <p class="sub">Tổng mức vay và chi trả nợ gốc của ngân sách địa phương, tính theo tỉ lệ
+      trên tổng chi (biểu B46).</p>
+    <div class="scroll"><svg id="debt"></svg></div>
+    <div class="lgd" id="debtlgd"></div>
+    <div class="note" id="debtnote"></div>
+  </section>
+
+  <section>
+    <h2>Quy mô ngân sách chênh nhau bao nhiêu lần</h2>
+    <p class="sub">Tổng nguồn thu ngân sách địa phương, số tuyệt đối.</p>
+    <div class="scroll"><svg id="size"></svg></div>
+    <div class="note" id="sizenote"></div>
+  </section>
+
+  <section>
+    <h2>Ngân sách một tỉnh lớn dần theo năm</h2>
+    <p class="sub">Trung vị tổng nguồn thu của các tỉnh có công bố, kèm khoảng tứ phân vị.
+      Dùng trung vị chứ không cộng tổng, vì số tỉnh công bố mỗi năm rất khác nhau.</p>
+    <div class="scroll"><svg id="trend"></svg></div>
+    <div class="note" id="trendnote"></div>
   </section>
 
   <section>
@@ -335,6 +401,352 @@ document.getElementById('kpis').innerHTML = [
     `dành trung vị <b>46%</b> tổng chi cho đầu tư phát triển; nhóm dưới 40% chỉ <b>15%</b> — phần ` +
     `còn lại gần như dồn hết vào chi thường xuyên. Đây là <b>tương quan, không phải nhân quả</b>: ` +
     `dữ liệu này không cho biết chiều tác động.`;
+})();
+
+/* ---------- shared chart helpers ---------- */
+const SVGSET = (id, w, h, label) => {
+  const g = document.getElementById(id);
+  g.setAttribute('viewBox', `0 0 ${w} ${h}`); g.setAttribute('width', w);
+  g.setAttribute('height', h); g.setAttribute('role','img'); g.setAttribute('aria-label',label);
+  return g;
+};
+const T3 = v => (v/1e12).toFixed(1).replace('.',',');   // -> nghìn tỷ đồng
+const PCT = v => Math.round(v*100) + '%';
+
+/* one horizontal bar per row, value already 0..1 or absolute */
+function ranked(id, rows, o){
+  const RH = o.rh || 19, LW = o.lw || 128, R = o.r || 92, T = 8, BW = o.bw || 330;
+  const max = Math.max(...rows.map(o.v));
+  const svg = SVGSET(id, LW+BW+R, T+rows.length*RH+6, o.label);
+  rows.forEach((d,i) => {
+    const y = T+i*RH;
+    const lab = el('text',{x:LW-9,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    lab.textContent = o.name(d); svg.appendChild(lab);
+    const ww = Math.max(1.5, o.v(d)/max*BW);
+    const r = el('rect',{x:LW, y:y+2, width:ww, height:RH-6, rx:3,
+      fill:o.color ? o.color(d) : 'var(--s1)', tabindex:0, role:'img',
+      'aria-label':`${o.name(d)}: ${o.text(d)}`});
+    bind(r, o.tip(d)); svg.appendChild(r);
+    const t = el('text',{x:LW+ww+7,y:y+RH/2+4,fill:'var(--ink2)'});
+    t.textContent = o.text(d); svg.appendChild(t);
+  });
+  return svg;
+}
+
+/* full-width stacked composition, keys in fixed order */
+function stacked(id, rows, keys, cols, o){
+  const RH = 20, LW = o.lw || 128, R = o.r || 86, T = 8, BW = o.bw || 330;
+  const svg = SVGSET(id, LW+BW+R, T+rows.length*RH+6, o.label);
+  rows.forEach((d,i) => {
+    const y = T+i*RH, tot = o.total(d);
+    const lab = el('text',{x:LW-9,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    lab.textContent = d.p; svg.appendChild(lab);
+    let acc = 0;
+    keys.forEach((k,ki) => {
+      const v = o.part(d,k); if (!v) return;
+      const ww = v/tot*BW;
+      const r = el('rect',{x:LW+acc+1,y:y+2,width:Math.max(1,ww-2),height:RH-6,rx:3,
+        fill:cols[ki], tabindex:0, role:'img',
+        'aria-label':`${d.p} ${o.short(k)}: ${PCT(v/tot)}`});
+      bind(r, `<b>${d.p}</b> · ${d.y}<br>${o.short(k)}: ${T3(v)} nghìn tỷ<br><em>${
+        PCT(v/tot)} của ${T3(tot)} nghìn tỷ</em>`);
+      svg.appendChild(r); acc += ww;
+    });
+    const tv = el('text',{x:LW+BW+40,y:y+RH/2+4,'text-anchor':'end'});
+    tv.textContent = T3(tot); svg.appendChild(tv);
+    const yr = el('text',{x:LW+BW+R-6,y:y+RH/2+4,'text-anchor':'end'});
+    yr.textContent = d.y; svg.appendChild(yr);
+  });
+  return svg;
+}
+const legend = (id, names, cols, tail) =>
+  document.getElementById(id).innerHTML = names.map((n,i) =>
+    `<span><i style="background:${cols[i]}"></i>${n}</span>`).join('') +
+    (tail ? `<span style="color:var(--muted)">${tail}</span>` : '');
+
+const SHORT = {
+  'Thu tiền sử dụng đất':'Tiền sử dụng đất',
+  'Thu từ khu vực doanh nghiệp có vốn đầu tư nước ngoài':'Doanh nghiệp FDI',
+  'Thu từ khu vực kinh tế ngoài quốc doanh':'Kinh tế ngoài quốc doanh',
+  'Thu từ khu vực DNNN do Trung ương quản lý':'DNNN trung ương',
+  'Thu từ khu vực DNNN do địa phương quản lý':'DNNN địa phương',
+  'Thuế thu nhập cá nhân':'Thuế thu nhập cá nhân',
+  'Thu từ hoạt động xổ số kiến thiết':'Xổ số kiến thiết',
+  'Lệ phí trước bạ':'Lệ phí trước bạ',
+  'Thuế bảo vệ môi trường':'Thuế bảo vệ môi trường',
+  'Thu phí, lệ phí':'Phí và lệ phí',
+  'Chi giáo dục - đào tạo và dạy nghề':'Giáo dục, đào tạo',
+  'Chi y tế, dân số và gia đình':'Y tế, dân số',
+  'Chi bảo đảm xã hội':'Bảo đảm xã hội',
+  'Chi các hoạt động kinh tế':'Hoạt động kinh tế',
+  'Chi hoạt động của cơ quan quản lý nhà nước, đảng, đoàn thể':'Quản lý nhà nước, đảng, đoàn thể',
+  'Chi khoa học và công nghệ':'Khoa học, công nghệ',
+  'Chi bảo vệ môi trường':'Bảo vệ môi trường',
+  'Chi văn hóa thông tin':'Văn hóa, thông tin',
+};
+const med = a => { const s2=[...a].sort((x,y)=>x-y); return s2[Math.floor(s2.length/2)]; };
+
+/* The n largest parts by share of the whole corpus, rest folded into "Khác".
+   Ranking by MEDIAN share instead would drop FDI revenue: it is 15% of all revenue but
+   concentrated in a handful of provinces, so its median province share is only 3%. */
+function topParts(rows, n){
+  const sum = {};
+  rows.forEach(r => Object.entries(r.parts).forEach(([k,v]) => sum[k] = (sum[k]||0) + v));
+  return Object.entries(sum).sort((a,b) => b[1]-a[1]).slice(0,n).map(e => e[0]);
+}
+
+/* A province missing one of the charted components would show that slice as zero and swell
+   its "khác" instead - Tây Ninh publishes 661.8 tỷ of education spending but the cell is
+   ambiguous and was dropped, which drew it as a province spending nothing on schools.
+   Such provinces are excluded from the chart and counted in the note. */
+function complete(rows, keys){
+  const need = keys.filter(k => k !== '__other');
+  return rows.filter(r => need.every(k => r.parts[k]));
+}
+
+/* ---------- 3. revenue composition ---------- */
+(function(){
+  const keys = topParts(D.revmix, 5).concat('__other');
+  const rows = complete(D.revmix, keys).sort((a,b) =>
+    (b.parts['Thu tiền sử dụng đất']||0)/b.tot - (a.parts['Thu tiền sử dụng đất']||0)/a.tot);
+  const skipped = D.revmix.length - rows.length;
+  const cols = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--axis)'];
+  stacked('rev', rows, keys, cols, {
+    label:'Cơ cấu thu nội địa theo tỉnh',
+    total: d => d.tot,
+    part: (d,k) => k === '__other'
+      ? d.tot - keys.slice(0,-1).reduce((a,k2) => a + (d.parts[k2]||0), 0)
+      : (d.parts[k]||0),
+    short: k => k === '__other' ? 'Các khoản khác' : (SHORT[k]||k),
+  });
+  legend('revlgd', keys.map(k => k==='__other' ? 'Các khoản khác' : (SHORT[k]||k)), cols,
+         `Cột số: tổng thu nội địa, nghìn tỷ đồng${skipped ? ' · '+skipped+
+         ' tỉnh không hiển thị vì thiếu ít nhất một khoản' : ''}`);
+  const tb = document.getElementById('revtbl');
+  tb.innerHTML = '<thead><tr><th>Tỉnh/thành</th><th>Năm</th>' +
+    keys.map(k => `<th>${k==='__other'?'Khác':(SHORT[k]||k)}</th>`).join('') +
+    '<th>Tổng</th></tr></thead><tbody>' + rows.map(d => {
+      const other = d.tot - keys.slice(0,-1).reduce((a,k2)=>a+(d.parts[k2]||0),0);
+      return `<tr><td>${d.p}</td><td>${d.y}</td>` + keys.map(k =>
+        `<td>${PCT((k==='__other'?other:(d.parts[k]||0))/d.tot)}</td>`).join('') +
+        `<td><b>${T3(d.tot)}</b></td></tr>`; }).join('') +
+    '</tbody><tfoot><tr><td colspan="9" style="color:var(--muted);border:0;padding-top:8px">' +
+    `Quyết toán, biểu B63. Tổng tính bằng nghìn tỷ đồng.${skipped ? ' '+skipped+' tỉnh bị loại khỏi biểu vì có ô nhập nhằng.' : ''}</td></tr></tfoot>`;
+})();
+
+/* ---------- 4. land dependency ---------- */
+(function(){
+  const rows = D.revmix.map(d => ({...d, land:(d.parts['Thu tiền sử dụng đất']||0)/d.tot}))
+    .filter(d => d.land > 0).sort((a,b) => b.land - a.land);
+  ranked('land', rows, {
+    label:'Tỉ trọng tiền sử dụng đất trong thu nội địa',
+    name: d => d.p, v: d => d.land, text: d => PCT(d.land),
+    tip: d => `<b>${d.p}</b> · quyết toán ${d.y}<br>tiền sử dụng đất ${
+      T3(d.parts['Thu tiền sử dụng đất'])} nghìn tỷ<br><em>${PCT(d.land)} của thu nội địa ${
+      T3(d.tot)} nghìn tỷ</em>`,
+  });
+  const m = med(rows.map(d => d.land));
+  document.getElementById('landnote').innerHTML =
+    `Trung vị <b>${PCT(m)}</b>. Cao nhất <b>${rows[0].p} ${PCT(rows[0].land)}</b>, thấp nhất ` +
+    `<b>${rows[rows.length-1].p} ${PCT(rows[rows.length-1].land)}</b>. Tỉnh nào dựa nhiều vào ` +
+    `khoản này thì nguồn thu khó lặp lại khi quỹ đất cạn.`;
+})();
+
+/* ---------- 5. spending by sector ---------- */
+(function(){
+  const keys = topParts(D.sectmix, 5).concat('__other');
+  const cols = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--axis)'];
+  const rows = complete(D.sectmix, keys).sort((a,b) =>
+    (b.parts['Chi giáo dục - đào tạo và dạy nghề']||0)/b.tot -
+    (a.parts['Chi giáo dục - đào tạo và dạy nghề']||0)/a.tot);
+  const skipped = D.sectmix.length - rows.length;
+  stacked('sect', rows, keys, cols, {
+    label:'Cơ cấu chi thường xuyên theo lĩnh vực',
+    total: d => d.tot,
+    part: (d,k) => k === '__other'
+      ? d.tot - keys.slice(0,-1).reduce((a,k2) => a + (d.parts[k2]||0), 0)
+      : (d.parts[k]||0),
+    short: k => k === '__other' ? 'Lĩnh vực khác' : (SHORT[k]||k),
+  });
+  legend('sectlgd', keys.map(k => k==='__other' ? 'Lĩnh vực khác' : (SHORT[k]||k)), cols,
+         `Cột số: tổng chi thường xuyên, nghìn tỷ đồng${skipped ? ' · '+skipped+
+         ' tỉnh không hiển thị vì thiếu ít nhất một lĩnh vực' : ''}`);
+  const sh = k => med(rows.filter(d=>d.parts[k]).map(d => d.parts[k]/d.tot));
+  document.getElementById('sectnote').innerHTML =
+    `Trung vị ${rows.length} tỉnh hiển thị: giáo dục <b>${PCT(sh('Chi giáo dục - đào tạo và dạy nghề'))}</b>, ` +
+    `y tế <b>${PCT(sh('Chi y tế, dân số và gia đình'))}</b>, quản lý nhà nước <b>${
+      PCT(sh('Chi hoạt động của cơ quan quản lý nhà nước, đảng, đoàn thể'))}</b>, ` +
+    `còn khoa học và công nghệ chỉ <b>${PCT(sh('Chi khoa học và công nghệ'))}</b> — ` +
+    `nhỏ hơn cả chi văn hóa thông tin.`;
+  const tb = document.getElementById('secttbl');
+  tb.innerHTML = '<thead><tr><th>Tỉnh/thành</th><th>Năm</th>' +
+    keys.map(k=>`<th>${k==='__other'?'Khác':(SHORT[k]||k)}</th>`).join('') +
+    '<th>Tổng</th></tr></thead><tbody>' + rows.map(d => {
+      const other = d.tot - keys.slice(0,-1).reduce((a,k2)=>a+(d.parts[k2]||0),0);
+      return `<tr><td>${d.p}</td><td>${d.y}</td>` + keys.map(k =>
+        `<td>${PCT((k==='__other'?other:(d.parts[k]||0))/d.tot)}</td>`).join('') +
+        `<td><b>${T3(d.tot)}</b></td></tr>`; }).join('') + '</tbody>';
+})();
+
+/* ---------- 6. education vs health ---------- */
+(function(){
+  const EDU='Chi giáo dục - đào tạo và dạy nghề', HEA='Chi y tế, dân số và gia đình';
+  const rows = D.sectmix.filter(d => d.parts[EDU] && d.parts[HEA])
+    .map(d => ({...d, e:d.parts[EDU]/d.tot, h:d.parts[HEA]/d.tot}))
+    .sort((a,b) => b.e - a.e);
+  const RH = 22, LW = 128, R = 96, T = 8, BW = 320;
+  const max = Math.max(...rows.map(d => Math.max(d.e, d.h)));
+  const svg = SVGSET('edu', LW+BW+R, T+rows.length*RH+6, 'Tỉ trọng chi giáo dục và y tế');
+  rows.forEach((d,i) => {
+    const y = T+i*RH;
+    const lab = el('text',{x:LW-9,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    lab.textContent = d.p; svg.appendChild(lab);
+    [['e','var(--s1)','Giáo dục, đào tạo'],['h','var(--s2)','Y tế, dân số']].forEach(([k,c,n],j) => {
+      const ww = Math.max(1.5, d[k]/max*BW);
+      const r = el('rect',{x:LW, y:y+2+j*7, width:ww, height:6, rx:2, fill:c, tabindex:0,
+        role:'img','aria-label':`${d.p} ${n}: ${PCT(d[k])}`});
+      bind(r, `<b>${d.p}</b> · ${d.y}<br>${n}: ${PCT(d[k])} chi thường xuyên`);
+      svg.appendChild(r);
+    });
+    const t = el('text',{x:LW+BW+R-6,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    t.textContent = `${PCT(d.e)} / ${PCT(d.h)}`; svg.appendChild(t);
+  });
+  legend('edulgd', ['Giáo dục, đào tạo','Y tế, dân số'], ['var(--s1)','var(--s2)'],
+         'Cột phải: giáo dục / y tế');
+})();
+
+/* ---------- 7. plan vs outturn ---------- */
+(function(){
+  const byProv = {};
+  D.planact.forEach(p => { (byProv[p.p] = byProv[p.p] || []).push(p.ratio); });
+  const rows = Object.entries(byProv).map(([p,a]) => ({p, r:med(a), n:a.length}))
+    .sort((a,b) => b.r - a.r);
+  const LW = 128, R = 104, T = 8, RH = 19, BW = 300;
+  const lo = Math.min(0.7, ...rows.map(d=>d.r)), hi = Math.max(1.6, ...rows.map(d=>d.r));
+  const X = v => LW + (v-lo)/(hi-lo)*BW;
+  const svg = SVGSET('pa', LW+BW+R, T+rows.length*RH+22, 'Thực thu so với dự toán');
+  const base = X(1);
+  svg.appendChild(el('line',{x1:base,x2:base,y1:T,y2:T+rows.length*RH,
+    stroke:'var(--axis)','stroke-width':1}));
+  const bl = el('text',{x:base,y:T+rows.length*RH+16,'text-anchor':'middle'});
+  bl.textContent='đúng dự toán (100%)'; svg.appendChild(bl);
+  rows.forEach((d,i) => {
+    const y = T+i*RH;
+    const lab = el('text',{x:LW-9,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    lab.textContent = d.p; svg.appendChild(lab);
+    const x = X(d.r), over = d.r >= 1;
+    const r = el('rect',{x:Math.min(base,x), y:y+2, width:Math.max(1.5,Math.abs(x-base)),
+      height:RH-6, rx:3, fill: over ? 'var(--s1)' : 'var(--s2)', tabindex:0, role:'img',
+      'aria-label':`${d.p}: thực thu ${PCT(d.r)} dự toán`});
+    bind(r, `<b>${d.p}</b><br>thực thu ${PCT(d.r)} so với dự toán<br><em>trung vị của ${
+      d.n} năm</em>`);
+    svg.appendChild(r);
+    const t = el('text',{x:LW+BW+R-6,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    t.textContent = `${PCT(d.r)} · ${d.n} năm`; svg.appendChild(t);
+  });
+  const all = D.planact.map(p=>p.ratio), over = all.filter(r=>r>1).length;
+  const worst = D.planact.slice().sort((a,b)=>a.ratio-b.ratio)[0];
+  document.getElementById('panote').innerHTML =
+    `Mỗi thanh là <b>trung vị của riêng tỉnh đó</b> qua các năm nó công bố. Trên toàn bộ ` +
+    `<b>${D.planact.length} tỉnh-năm</b>, thực thu vượt dự toán ở <b>${over}</b> trường hợp ` +
+    `(${PCT(over/all.length)}), trung vị <b>${PCT(med(all))}</b> — dự toán thu được lập thấp hơn ` +
+    `khả năng thực tế một cách có hệ thống. Hụt sâu nhất trong một năm đơn lẻ là ` +
+    `<b>${worst.p} năm ${worst.y}, chỉ ${PCT(worst.ratio)}</b>.`;
+})();
+
+/* ---------- 8. borrowing ---------- */
+(function(){
+  const rows = D.debt.filter(d => d.borrow || d.repay)
+    .map(d => ({...d, b:(d.borrow||0)/d.exp, r:(d.repay||0)/d.exp}))
+    .sort((a,b) => b.b - a.b);
+  const RH = 22, LW = 128, R = 108, T = 8, BW = 300;
+  const max = Math.max(...rows.map(d => Math.max(d.b, d.r)));
+  const svg = SVGSET('debt', LW+BW+R, T+rows.length*RH+6, 'Vay và trả nợ gốc trên tổng chi');
+  rows.forEach((d,i) => {
+    const y = T+i*RH;
+    const lab = el('text',{x:LW-9,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    lab.textContent = d.p; svg.appendChild(lab);
+    [['b','var(--s1)','Tổng mức vay','borrow'],['r','var(--s2)','Trả nợ gốc','repay']]
+      .forEach(([k,c,n,raw],j) => {
+        if (!d[k]) return;
+        const ww = Math.max(1.5, d[k]/max*BW);
+        const rr = el('rect',{x:LW,y:y+2+j*7,width:ww,height:6,rx:2,fill:c,tabindex:0,
+          role:'img','aria-label':`${d.p} ${n}: ${PCT(d[k])} tổng chi`});
+        bind(rr, `<b>${d.p}</b> · ${d.y}<br>${n}: ${T3(d[raw])} nghìn tỷ<br><em>${
+          PCT(d[k])} của tổng chi ${T3(d.exp)} nghìn tỷ</em>`);
+        svg.appendChild(rr);
+      });
+    const t = el('text',{x:LW+BW+R-6,y:y+RH/2+4,'text-anchor':'end',fill:'var(--ink2)'});
+    t.textContent = `${PCT(d.b)} / ${PCT(d.r)}`; svg.appendChild(t);
+  });
+  legend('debtlgd', ['Tổng mức vay','Trả nợ gốc'], ['var(--s1)','var(--s2)'],
+         'Cột phải: vay / trả nợ, tính trên tổng chi');
+  document.getElementById('debtnote').innerHTML =
+    `${rows.length} tỉnh có công bố ít nhất một trong hai chỉ tiêu. Mức vay cao nhất là ` +
+    `<b>${rows[0].p} ${PCT(rows[0].b)}</b> tổng chi — vay của ngân sách địa phương bị ` +
+    `giới hạn theo Luật Ngân sách nên đều ở mức thấp.`;
+})();
+
+/* ---------- 9. absolute size ---------- */
+(function(){
+  const rows = D.latest.slice().sort((a,b) => b.rev - a.rev);
+  ranked('size', rows, {
+    r:110,
+    label:'Tổng nguồn thu ngân sách địa phương',
+    name: d => d.p, v: d => d.rev,
+    text: d => `${T3(d.rev)} nghìn tỷ`,
+    tip: d => `<b>${d.p}</b> · dự toán ${d.y}<br>tổng nguồn thu ${T3(d.rev)} nghìn tỷ<br>` +
+              `<em>tự chủ ${PCT(d.selfrate)}</em>`,
+  });
+  const a = rows[0], z = rows[rows.length-1];
+  document.getElementById('sizenote').innerHTML =
+    `<b>${a.p}</b> (${T3(a.rev)} nghìn tỷ) lớn gấp <b>${(a.rev/z.rev).toFixed(1).replace('.',',')} lần` +
+    `</b> <b>${z.p}</b> (${T3(z.rev)} nghìn tỷ). Hai đô thị lớn nhất cộng lại bằng khoảng ` +
+    `${PCT((rows[0].rev+rows[1].rev)/rows.reduce((s,d)=>s+d.rev,0))} tổng nguồn thu của cả ` +
+    `${rows.length} tỉnh trong bảng.`;
+})();
+
+/* ---------- 10. trend ---------- */
+(function(){
+  const R2 = D.trend; if (!R2.length) return;
+  const W = 420, H = 210, L2 = 74, T2 = 16, B2 = 40;
+  const svg = SVGSET('trend', L2+W+70, T2+H+B2+14, 'Trung vị tổng nguồn thu theo năm');
+  const max = Math.max(...R2.map(t => t.hi))*1.05;
+  const ys = R2.map(t => t.y), x0 = Math.min(...ys), x1 = Math.max(...ys);
+  const X = y => L2 + (y-x0)/(x1-x0||1)*W, Y = v => T2 + H - v/max*H;
+  [0,.25,.5,.75,1].forEach(f => {
+    const y = Y(max*f);
+    svg.appendChild(el('line',{x1:L2,x2:L2+W,y1:y,y2:y,
+      stroke: f===0?'var(--axis)':'var(--grid)','stroke-width':1}));
+    const t = el('text',{x:L2-8,y:y+4,'text-anchor':'end'});
+    t.textContent = (max*f/1e12).toFixed(0); svg.appendChild(t);
+  });
+  const yl = el('text',{x:L2-52,y:T2+H/2,'text-anchor':'middle',fill:'var(--ink2)',
+    transform:`rotate(-90 ${L2-52} ${T2+H/2})`});
+  yl.textContent='nghìn tỷ đồng'; svg.appendChild(yl);
+  // interquartile band
+  const up = R2.map(t => `${X(t.y)},${Y(t.hi)}`).join(' ');
+  const dn = R2.slice().reverse().map(t => `${X(t.y)},${Y(t.lo)}`).join(' ');
+  svg.appendChild(el('polygon',{points:`${up} ${dn}`, fill:'var(--s1)', opacity:.14}));
+  svg.appendChild(el('polyline',{points:R2.map(t=>`${X(t.y)},${Y(t.med)}`).join(' '),
+    fill:'none', stroke:'var(--s1)', 'stroke-width':2}));
+  R2.forEach(t => {
+    const c = el('circle',{cx:X(t.y),cy:Y(t.med),r:4.5,fill:'var(--s1)',
+      stroke:'var(--surface)','stroke-width':2,tabindex:0,role:'img',
+      'aria-label':`${t.y}: trung vị ${T3(t.med)} nghìn tỷ, ${t.n} tỉnh`});
+    bind(c, `<b>${t.y}</b><br>trung vị ${T3(t.med)} nghìn tỷ<br><em>tứ phân vị ${
+      T3(t.lo)}–${T3(t.hi)} · ${t.n} tỉnh công bố</em>`);
+    svg.appendChild(c);
+    const lx = el('text',{x:X(t.y),y:T2+H+18,'text-anchor':'middle'});
+    lx.textContent = t.y; svg.appendChild(lx);
+    const ln = el('text',{x:X(t.y),y:T2+H+32,'text-anchor':'middle'});
+    ln.textContent = `n=${t.n}`; svg.appendChild(ln);
+  });
+  const a = R2[0], z = R2[R2.length-1];
+  document.getElementById('trendnote').innerHTML =
+    `Trung vị một tỉnh đi từ <b>${T3(a.med)}</b> lên <b>${T3(z.med)} nghìn tỷ</b> giữa ${a.y} và ` +
+    `${z.y} (+${Math.round((z.med/a.med-1)*100)}%). Vùng nhạt là khoảng tứ phân vị. ` +
+    `Số tỉnh công bố mỗi năm ghi dưới trục — đây là lý do dùng trung vị thay vì tổng.`;
 })();
 
 /* ---------- heatmap: province x year ---------- */

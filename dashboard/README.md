@@ -79,20 +79,38 @@ is unknown and the conversion was deliberately left blank.
 
 ## What the page shows
 
-**The budget itself**, from form **B46 — Cân đối ngân sách địa phương**, the provincial
-balance sheet. Two findings lead the page:
+**Ten analyses of the budget**, then four of the disclosure behind it.
 
-- **How much of its own money each province raises.** `Thu NSĐP được hưởng theo phân cấp`
-  over `TỔNG NGUỒN THU NSĐP`. The spread is enormous: Bắc Ninh funds 98% of its own budget,
-  Lạng Sơn 15%. The industrial north and the two big cities sit at the top; the mountainous
-  border provinces sit at the bottom.
-- **Self-sufficiency tracks investment almost one-for-one** (r = 0.88, n = 31). Provinces
-  above 80% self-sufficiency put a median 46% of spending into `Chi đầu tư phát triển`;
-  those below 40% put in 15%, with the rest going to recurring costs. Correlation, not
-  causation — the data cannot say which way it runs.
+| # | Chart | Source | Headline |
+|---|---|---|---|
+| 1 | Self-sufficiency | B46 | Bắc Ninh raises 98% of its own revenue, Lạng Sơn 15% |
+| 2 | Self-sufficiency vs investment | B46 | r = 0.88 — the self-funded provinces are the ones that build |
+| 3 | Where revenue comes from | B63 quyết toán | Five largest sources per province, rest as "khác" |
+| 4 | Land-sale dependence | B63 | Median 25% of internal revenue; a one-off source that does not repeat |
+| 5 | Recurring spending by sector | B50 | Education 26%, health 24%, science and technology 1% |
+| 6 | Education vs health | B50 | The two dominant lines, side by side |
+| 7 | Plan vs outturn | B63 (both columns) | Revenue beats plan in 86% of province-years, median 106% |
+| 8 | Borrowing and repayment | B46 | All provinces low — local borrowing is capped by law |
+| 9 | Absolute size | B46 | The largest budget is ~16x the smallest |
+| 10 | Trend | B46 | Median province revenue 12.0 → 18.6 nghìn tỷ, 2018–2024 |
+| 11–14 | Coverage, volume, machine-readability, units | — | Disclosure and data quality |
 
-**And disclosure quality**: which province published what, in which year, in which format,
-and how much of it converts to VND.
+### The rule every one of these follows
+
+Each figure is **a named cell of one named form**, and the derived numbers are ratios of two
+such cells. Nothing is a sum of line items, so nothing can double count.
+
+Two consequences are enforced in code rather than trusted:
+
+- **Ambiguous cells are dropped, not guessed.** Where the header rebuild gave two different
+  columns of a form the same series label, there is no way to know which column a value came
+  from. Those keys are discarded and the count is printed by `aggregate.py` (B50 loses 289,
+  B46 and B63 lose none). B65 loses ~120 of ~125 sector keys this way, which is why the
+  sector split is read from B50 instead.
+- **A province missing one charted component is excluded from that chart**, not drawn with a
+  zero slice. Tây Ninh publishes 661.8 tỷ of education spending but its cell is ambiguous;
+  drawn naively it became a province that spends nothing on schools. The legend says how many
+  provinces were held back.
 
 ### Why B46 and nothing wider
 
@@ -111,7 +129,9 @@ year with data differs by province (2020–2024) because disclosure coverage is 
 are stated on the page rather than smoothed over. 32 of 34 provinces carry B46 at all.
 
 A national total across provinces is still not attempted: that needs a curated indicator
-mapping per form, which does not exist yet.
+mapping per form, which does not exist yet. The trend chart shows the **median province**
+rather than a sum for the same reason — the number of provinces reporting swings from 17 to
+29 by year, so a sum would read as a collapse in a thin year.
 
 The colour palette is validated, not eyeballed: three categorical slots and a six-step
 sequential blue, checked in both modes with the data-viz validator (worst all-pairs CVD
