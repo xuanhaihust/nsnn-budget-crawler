@@ -77,16 +77,41 @@ ORDER BY p.name, pe.year;
 number their rows differently. `dim_unit.factor` is the VND multiplier, `0` where the unit
 is unknown and the conversion was deliberately left blank.
 
-## What the page does and does not show
+## What the page shows
 
-It shows **disclosure and data quality**: which province published what, in which year, in
-which format, and how much of it converts to VND.
+**The budget itself**, from form **B46 — Cân đối ngân sách địa phương**, the provincial
+balance sheet. Two findings lead the page:
 
-It does **not** aggregate budget totals across provinces. The corpus is long-format
-hierarchical line items — `TỔNG CHI NSĐP`, `B TỔNG CHI NSĐP` and `A CHI CÂN ĐỐI NSĐP` all
-appear as separate rows of the same table — so summing them would double count. Getting a
-defensible national total needs a curated indicator mapping per form, which does not exist
-yet. Charting one anyway would have been the easy, wrong thing.
+- **How much of its own money each province raises.** `Thu NSĐP được hưởng theo phân cấp`
+  over `TỔNG NGUỒN THU NSĐP`. The spread is enormous: Bắc Ninh funds 98% of its own budget,
+  Lạng Sơn 15%. The industrial north and the two big cities sit at the top; the mountainous
+  border provinces sit at the bottom.
+- **Self-sufficiency tracks investment almost one-for-one** (r = 0.88, n = 31). Provinces
+  above 80% self-sufficiency put a median 46% of spending into `Chi đầu tư phát triển`;
+  those below 40% put in 15%, with the rest going to recurring costs. Correlation, not
+  causation — the data cannot say which way it runs.
+
+**And disclosure quality**: which province published what, in which year, in which format,
+and how much of it converts to VND.
+
+### Why B46 and nothing wider
+
+The corpus is long-format hierarchical line items. `TỔNG CHI NSĐP`, `B TỔNG CHI NSĐP` and
+`A CHI CÂN ĐỐI NSĐP` all appear as separate rows of the same table, so summing line items
+would double count.
+
+B46 escapes that because every figure used is **a single published cell of one named form** —
+never a sum. The ratio behind the headline is two such cells divided by each other, so there
+is no summing assumption anywhere. Checked against the source: An Giang's 2019 own revenue
+(5,243.9 tỷ) plus central transfers (8,230.2 tỷ) equals its published total (13,474.1 tỷ)
+exactly, and its total spending equals its total revenue, as a budget plan must.
+
+The figures are **dự toán** (plans), not **quyết toán** (settled accounts), and the latest
+year with data differs by province (2020–2024) because disclosure coverage is uneven. Both
+are stated on the page rather than smoothed over. 32 of 34 provinces carry B46 at all.
+
+A national total across provinces is still not attempted: that needs a curated indicator
+mapping per form, which does not exist yet.
 
 The colour palette is validated, not eyeballed: three categorical slots and a six-step
 sequential blue, checked in both modes with the data-viz validator (worst all-pairs CVD
