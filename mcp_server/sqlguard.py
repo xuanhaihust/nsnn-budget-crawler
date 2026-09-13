@@ -27,8 +27,13 @@ from warehouse import DB, READABLE, connect
 
 # Eponymous virtual tables compiled into this build that are NOT schema objects, so the
 # "unknown name is a CTE" rule below must never let them through.
+# Eponymous virtual tables are authorized as SQLITE_READ on their NAME, not as
+# SQLITE_FUNCTION, so the SAFE_FUNCS allowlist never sees them - json_each and json_tree ran
+# despite being off the list. Anything compiled into this build that is not a schema object
+# belongs here.
 BLOCKED = {'dbstat', 'sqlite_stmt', 'sqlite_dbpage', 'fts3tokenize', 'fts4aux', 'fts5vocab',
-           'rtree', 'rtree_i32', 'generate_series', 'carray', 'zipfile', 'fsdir'}
+           'rtree', 'rtree_i32', 'generate_series', 'carray', 'zipfile', 'fsdir',
+           'json_each', 'json_tree', 'sqlite_dbdata', 'pragma_database_list'}
 BLOCKED_PREFIX = ('sqlite_', 'pragma_', 'fts', 'rtree')
 
 # Deliberately absent: randomblob, zeroblob, random, load_extension, readfile, writefile.
@@ -44,6 +49,8 @@ SAFE_FUNCS = {
     'date', 'time', 'datetime', 'strftime', 'julianday', 'unixepoch',
     'json', 'json_array', 'json_array_length', 'json_extract', 'json_object', 'json_type',
     'json_valid', 'json_quote', 'json_group_array', 'json_group_object',
+    # json_each / json_tree are deliberately absent: they are table-valued and are blocked
+    # by name above, because the FUNCTION action never fires for them.
 }
 
 MAX_ROWS = 500                  # rows handed back

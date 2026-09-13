@@ -97,37 +97,83 @@ def flat(s, limit=None):
 
 # --- outline markers -----------------------------------------------------------------------
 
-# Vietnamese budget forms nest section letter > roman > arabic > dotted > lowercase > dash.
-# I/V/X standing alone are roman, not section letters; Đ is a section letter (B46 uses it).
+# Vietnamese budget forms nest: section letter > roman > parenthesised > arabic > lowercase
+# > dash. Levels are spaced so compound markers ("I.1", "A.2") slot between their parents and
+# the next rank. The number is an ordering, not a distance from the root - `children` only ever
+# compares it against the parent's.
+SECTION, ROMAN, PAREN, ARABIC, LOWER, DASH = 0, 2, 4, 6, 10, 12
+
 _ROMAN = re.compile(r'^[IVXLC]+$')
-_MARK = re.compile(r'^\s*([-*+•]+|\(?[0-9]+(?:\.[0-9]+)*[.)]?|[IVXLC]{2,}[.)]?|[IVXLCĐA-Za-z][.)]?)(?=\s)\s+')
-SECTION, ROMAN, ARABIC, LOWER, DASH = 0, 1, 2, 5, 6
+# Single-letter markers that are section letters rather than roman digits. C/D/L/M are roman
+# digits in principle (100/500/50/1000) but no form here numbers a section 100, so as markers
+# they are always letters. V and X are the opposite: a roman sequence reaching V or X is
+# ordinary, and the Vietnamese section alphabet (A B C D Đ E G H I K L M N) effectively never
+# gets that far, so they stay roman.
+_LETTER_ALWAYS = set('ABĐEGHKNOPQRSTUYCDLM')
+_MARK = re.compile(r'^\s*(\(\s*[0-9]+\s*\)[.)]?'
+                   r'|[-*+•]+'
+                   r'|[0-9]+(?:\.[0-9]+)*[.)]?'
+                   r'|[IVXLC]+\.[0-9]+(?:\.[0-9]+)*[.)]?'
+                   r'|[A-ZĐ]\.[0-9]+(?:\.[0-9]+)*[.)]?'
+                   r'|[IVXLC]{2,}[.)]?'
+                   r'|[IVXLCĐA-Za-z][.)]?)(?=\s)\s+')
 
 
-def outline(label):
-    """Return (marker, level) for an indicator label, or ('', None) when it carries no marker.
-
-    Level orders the hierarchy for positional scoping; it is not a distance from the root.
-    Deeper number means deeper in the outline, which is all `children` needs.
-    """
+def marker(label):
+    """The raw outline marker of a label, or '' when it carries none."""
     m = _MARK.match(unicodedata.normalize('NFC', str(label or '')))
-    if not m:
+    return m.group(1) if m else ''
+
+
+def i_is_section(labels):
+    """Is a bare `I` in this block a section letter rather than roman one?
+
+    Only contiguity tells them apart. A form lettered A, B, C, D, E, G, H continues with I, so
+    there the `I` row is a sibling of `H`. Form B63 letters only its `A` section and nests
+    romans I, II, III beneath it, so there `I` is roman - and getting that backwards makes a
+    breakdown of `I Thu nội địa` absorb the whole form. The deciding signal is whether the
+    block also carries an `H` marker: the letter run has to reach H before it reaches I.
+    """
+    return 'H' in {marker(lab).rstrip('.)').strip() for lab in labels}
+
+
+def outline(label, lettered=False):
+    """Return (marker, level), or ('', None) when the label carries no parseable marker.
+
+    A None level means "unknown", and callers must treat it as a hard stop rather than as a
+    wildcard: 19,433 distinct labels carry no marker at all, including every headline total
+    (TỔNG CHI NSĐP, TỔNG THU NGÂN SÁCH NHÀ NƯỚC), and treating those as "shallower than
+    everything" makes a breakdown swallow the whole form.
+
+    `lettered` comes from i_is_section() for the surrounding block.
+    """
+    mk = marker(label)
+    if not mk:
         return '', None
-    mark = m.group(1)
-    bare = mark.rstrip('.)').lstrip('(')
-    if mark[0] in '-*+•':
-        return mark, DASH
-    if bare.isdigit():
-        return mark, ARABIC
-    if bare.replace('.', '').isdigit():                      # 1.1, 2.3.4 - one level per dot
-        return mark, ARABIC + bare.count('.')
-    if len(bare) > 1 and _ROMAN.match(bare):
-        return mark, ROMAN
-    if bare in ('I', 'V', 'X'):                              # single roman digit, not a letter
-        return mark, ROMAN
+    bare = mk.rstrip('.)').strip()
+    if mk[0] in '-*+•':
+        return mk, DASH
+    if bare.startswith('('):                                  # (1), (2) - a group heading
+        return mk, PAREN
+    head = bare.split('.')[0]
+    dots = bare.count('.')
+    if bare.replace('.', '').isdigit():
+        return mk, ARABIC + dots
+    if _ROMAN.match(head) and dots:                           # I.1, II.3
+        return mk, ROMAN + dots
+    if len(head) == 1 and (head.isupper() or head == 'Đ') and dots:   # A.2
+        return mk, SECTION + dots
+    if len(bare) > 1 and _ROMAN.match(bare):                  # II, IV, VIII
+        return mk, ROMAN
+    if len(bare) == 1 and bare in _LETTER_ALWAYS:
+        return mk, SECTION
+    if bare == 'I':
+        return mk, SECTION if lettered else ROMAN
+    if bare in ('V', 'X'):
+        return mk, ROMAN
     if bare.isupper() or bare == 'Đ':
-        return mark, SECTION
-    return mark, LOWER
+        return mk, SECTION
+    return mk, LOWER
 
 
 # --- numbers -------------------------------------------------------------------------------
@@ -142,12 +188,21 @@ def money(vnd):
 
     No separators on purpose: Vietnamese sources write 146.068 for 146068 and use ',' as the
     decimal mark, so a formatted "146,068" invites a 1000x misreading against the source.
+
+    A non-zero figure must never render as "0". 34,306 rows carry a real VND value below
+    500,000, which three decimals of tỷ đồng rounds away - printing those as "0" would make a
+    published value indistinguishable from a published zero, in a corpus whose first rule is
+    that a blank is not a zero.
     """
     if vnd is None:
         return ''
     v = vnd / TY
     s = f"{v:.3f}".rstrip('0').rstrip('.')
-    return ('0' if s in ('', '-0') else s) + ('!scale?' if abs(vnd) > IMPLAUSIBLE else '')
+    if s in ('', '-0', '0') and vnd != 0:
+        s = f"{v:.9f}".rstrip('0').rstrip('.') or f"{v:.2e}"
+    elif s in ('', '-0'):
+        s = '0'
+    return s + ('!scale?' if abs(vnd) > IMPLAUSIBLE else '')
 
 
 def confidence(vnd, series, unit):

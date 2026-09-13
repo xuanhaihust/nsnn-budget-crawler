@@ -16,7 +16,7 @@ line under `I Chi đầu tư phát triển`) from `1 Chi giáo dục` (the recur
 merges them and makes 1,555 B65 cells ambiguous; keying on the raw label leaves exactly 0
 ambiguous on B46, B49, B50, B63, B64 and B65.
 """
-import functools
+import functools, threading
 
 import search, sqlguard, warehouse as w
 from warehouse import DASH, flat, fold, money, outline, render
@@ -28,14 +28,21 @@ ALIAS = {'ha noi': 'Hà Nội', 'hanoi': 'Hà Nội', 'saigon': 'TP Hồ Chí Mi
          'tphcm': 'TP Hồ Chí Minh', 'hcm': 'TP Hồ Chí Minh', 'tp hcm': 'TP Hồ Chí Minh',
          'thua thien hue': 'Huế', 'da nang': 'Đà Nẵng', 'danang': 'Đà Nẵng'}
 
-_CON = None
+_LOCAL = threading.local()
 
 
 def con():
-    global _CON
-    if _CON is None:
-        _CON = w.connect()
-    return _CON
+    """One connection per thread.
+
+    The SDK dispatches every sync tool through anyio.to_thread.run_sync, so concurrent calls
+    land on different worker threads. A single shared sqlite3 connection opened with
+    check_same_thread=False then deadlocks: 6 of 8 trials of two overlapping compare_provinces
+    calls hung, both threads stuck inside the same cursor. Connections are cheap (0.23 ms).
+    """
+    c = getattr(_LOCAL, 'con', None)
+    if c is None:
+        c = _LOCAL.con = w.connect()
+    return c
 
 
 @functools.lru_cache(maxsize=1)
@@ -101,42 +108,61 @@ def series_for(form_code, indicator, province=None):
 
 
 def children(province, year, form_code, series, parent):
-    """The DIRECT children of a published parent row, scoped positionally.
+    """The DIRECT children of a published parent row, scoped positionally within its document.
+
+    Returns (parent_row, children, rows_scanned) or (None, [], 0) when the parent is not found,
+    and raises ValueError when the parent's own outline level cannot be read.
 
     v_fact.id is fact_row.rowid, which is source row order, so the children of a parent are the
-    rows after it up to the next row at the parent's level or shallower. Positional scoping is
-    not optional: arabic numbering restarts under every roman section, so a flat marker filter
+    rows after it up to the next row at its level or shallower. Positional scoping is not
+    optional: arabic numbering restarts under every roman section, so a flat marker filter
     mixes the children of `I` with those of `II` and the residual goes to -5,366,746,000,000.
 
-    Only DIRECT children are summed. Dash rows under a numbered line are its parts, not its
-    siblings - including them turned a -2 triệu residual into a 2.3 trillion overstatement.
+    Three things bound the scan:
+
+    * The parent's OWN report and table. 4,016 of 83,559 (province, year, form, series) blocks
+      span more than one report, because two reports can publish the same form code and a
+      same-named series column in the same year. Without this the scan runs off the end of one
+      document into another and attributes its rows to the parent.
+    * A parent whose marker cannot be parsed is refused outright. 19,433 distinct labels carry
+      no marker - including every headline total - and treating "unknown" as "shallower than
+      everything" made the scan swallow whole sibling sections and still report a reconciliation.
+    * Only DIRECT children are summed. Dash rows under a numbered line are its parts, not its
+      siblings - including them turned a -2 triệu residual into a 2.3 trillion overstatement.
     """
+    loc = con().execute(
+        """SELECT id, report_id, table_label FROM v_fact
+           WHERE province = ? AND year = ? AND form_code = ? AND series = ?
+             AND indicator_raw = ? ORDER BY id LIMIT 1""",
+        (province, int(year), form_code, series, parent)).fetchone()
+    if loc is None:
+        return None, [], 0
     rows = [dict(r) for r in con().execute(
         """SELECT id, indicator_raw, vnd, value, unit, raw FROM v_fact
-           WHERE province = ? AND year = ? AND form_code = ? AND series = ? ORDER BY id""",
-        (province, year, form_code, series))]
-    idx = next((i for i, r in enumerate(rows) if r['indicator_raw'] == parent), None)
-    if idx is None:
-        return None, [], 0
-    _, plevel = outline(parent)
+           WHERE province = ? AND year = ? AND form_code = ? AND series = ?
+             AND report_id = ? AND table_label = ? ORDER BY id""",
+        (province, int(year), form_code, series, loc['report_id'], loc['table_label']))]
+    lettered = w.i_is_section(r['indicator_raw'] for r in rows)
+    idx = next((i for i, r in enumerate(rows) if r['id'] == loc['id']), None)
+    _, plevel = outline(parent, lettered)
     if plevel is None:
-        plevel = -1
+        raise ValueError(
+            f"{flat(parent, 70)!r} carries no outline marker, so its children cannot be "
+            "identified by position and this tool will not guess at them. Headline totals are "
+            "usually unmarked; break down the marked section rows beneath it instead - "
+            "nsnn_run_sql with ORDER BY id over this form will show the rows in source order.")
     kids, scanned = [], 0
     for r in rows[idx + 1:]:
-        _, lvl = outline(r['indicator_raw'])
+        _, lvl = outline(r['indicator_raw'], lettered)
         if lvl is not None and lvl <= plevel:
             break
         scanned += 1
-        if lvl == plevel + 1 or (plevel == -1 and lvl is not None):
-            kids.append(r)
-    if not kids:                       # no level exactly one deeper: take the shallowest below
-        block = rows[idx + 1:idx + 1 + scanned]
-        levels = [outline(r['indicator_raw'])[1] for r in block]
-        levels = [l for l in levels if l is not None]
-        if levels:
-            top = min(levels)
-            kids = [r for r in block if outline(r['indicator_raw'])[1] == top]
-    return rows[idx], kids, scanned
+        if lvl is not None and lvl > plevel:
+            kids.append((lvl, r))
+    if not kids:
+        return rows[idx], [], scanned
+    top = min(lvl for lvl, _ in kids)               # the shallowest rank actually present
+    return rows[idx], [r for lvl, r in kids if lvl == top], scanned
 
 
 def coverage(rows, key='province'):
@@ -189,8 +215,9 @@ FOUR THINGS THAT WILL OTHERWISE GO WRONG
    nsnn_break_down, which returns the published parent, its direct children and the residual.
 
 2. A BLANK IS NOT A ZERO. {blank:,} rows have no value because the source cell was empty or
-   held '-'. They are returned empty, never as 0. Bắc Ninh's entire 2023 'Dự toán HĐND quyết
-   định' scope is 3,916 rows with no values - that is 'did not publish', not 'budgeted nothing'.
+   held '-'. They are returned empty, never as 0. Separately, all 3,916 rows of Bắc Ninh's
+   2023 'Dự toán HĐND quyết định' scope carry no VND at all because the source declared no
+   unit - 582 of them are blank as well. Absent is not zero, in either sense.
 
 3. SCOPE IS A STAGE, NOT A CATEGORY. The same figure exists as a proposal, as an approved
    plan, and as settled accounts, and they are different numbers. Comparing a dự toán in one
@@ -400,21 +427,30 @@ def read_balance_sheet(year=None, province=None):
             if 'revenue' in v and 'own' in v and (p not in best or y > best[p][0]):
                 best[p] = (y, v)
         got = {(p, y): v for p, (y, v) in best.items()}
+    # Same magnitude check compare_provinces applies. Without it the separator-defect cells
+    # enter a national ranking unflagged, and their ratios look perfectly ordinary: Đồng Nai
+    # 2021 reads 0.029 tỷ of revenue with a self-sufficiency of 0.679.
+    med = {k: _cell_medians('B46', ind, 'DỰ TOÁN') for k, ind in B46.items()}
     rows = []
     for (p, y), v in sorted(got.items(), key=lambda kv: -(kv[1].get('revenue') or 0)):
+        bad = {k for k in v if magnitude_flag(v[k], med[k].get(p))}
+        ratio = lambda a, b: ('' if not (v.get(a) and v.get(b)) else
+                              '?' if bad & {a, b} else f"{v[a]/v[b]:.3f}")
         rows.append({
             'province': p, 'year': y,
             'revenue': money(v.get('revenue')), 'spend': money(v.get('spend')),
             'own': money(v.get('own')), 'central': money(v.get('central')),
             'investment': money(v.get('investment')), 'recurrent': money(v.get('recurrent')),
-            'self_suff': f"{v['own']/v['revenue']:.3f}" if v.get('own') and v.get('revenue') else '',
-            'inv_share': f"{v['investment']/v['spend']:.3f}"
-                         if v.get('investment') and v.get('spend') else ''})
+            'self_suff': ratio('own', 'revenue'), 'inv_share': ratio('investment', 'spend'),
+            'flag': 'MAGNITUDE?' if bad else ''})
     return render(rows, note=(
         "Form B46 'Cân đối ngân sách địa phương', series DỰ TOÁN · tỷ đồng.\n"
         "THESE ARE PLANS (dự toán), not settled accounts - the outturn differs.\n"
         "self_suff = own / revenue; inv_share = investment / spend. Both divide two published "
-        "cells, so neither sums line items.\n" + coverage(
+        "cells, so neither sums line items; a ratio shows '?' when either operand is flagged.\n"
+        "Rows marked MAGNITUDE? hold a figure 100x or more away from that cell's own history in "
+        "this province - a source defect, shown as published and not corrected. See "
+        "nsnn_list_data_quality(block='magnitude').\n" + coverage(
             [{'province': p} for p, _ in got])))
 
 
@@ -469,14 +505,23 @@ def break_down(province, year, form_code, indicator, series=None):
                               if k['vnd'] and parent['vnd'] else '', 'id': k['id']})
     pub = parent['vnd']
     resid = (pub - total) if pub is not None else None
-    ok = pub and abs(resid) <= abs(pub) * 0.005
+    # Three states, not two. `pub` of 0.0 is falsy, so a truthiness test reported "NO" on
+    # 18,679 breakdowns whose residual was exactly zero; and a parent that published nothing
+    # has nothing to reconcile against at all.
+    if pub is None:
+        ok = None
+    elif pub == 0:
+        ok = (total == 0)
+    else:
+        ok = abs(resid) <= abs(pub) * 0.005
     note = (f"{province} {year} · {form_code} · {series} · tỷ đồng\n"
             f"published parent  {flat(indicator, 60)} = {money(pub)}\n"
             f"children sum      {len(kids)} direct children = {money(total)}\n"
             f"residual          {money(resid)}"
             + (f"  ({resid/pub*100:+.3f}% of parent)" if pub else '')
-            + f"\nreconciles: {'YES' if ok else 'NO'}")
-    if not ok:
+            + "\nreconciles: " + ('YES' if ok else
+                                      'N/A - the parent published no value' if ok is None else 'NO'))
+    if ok is False:
         note += ("  <- the children do not add up to the published parent. Do NOT present the "
                  "sum as the total; report the published parent and say the split is partial.")
     if blanks:

@@ -6,13 +6,29 @@ Needs data/nsnn.db (dashboard/db.py restore). No test framework: the project has
 script that exits non-zero is enough. Every assertion here corresponds to a rule in CLAUDE.md
 or to a defect found while building this.
 """
-import pathlib, sys, time
+import pathlib, sys, threading, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import search, sqlguard, tools, warehouse as w
 
 PASS = FAIL = 0
+
+
+def _denied(sql):
+    try:
+        sqlguard.run(sql)
+        return False
+    except sqlguard.Denied:
+        return True
+
+
+def _refuses_unmarked():
+    try:
+        tools.break_down('Ninh Bình', 2019, 'B49', 'TỔNG CHI NGÂN SÁCH ĐỊA PHƯƠNG', 'NSĐP')
+        return False
+    except ValueError:
+        return True
 
 
 def check(name, cond, detail=''):
@@ -156,6 +172,46 @@ try:
     check('an ambiguous series is refused, not guessed', False, 'it picked one')
 except ValueError as exc:
     check('an ambiguous series is refused, not guessed', 'naming one is required' in str(exc))
+
+# --- regressions found by the adversarial review -----------------------------------------------
+section('regressions (each of these shipped broken once)')
+
+check('an unmarked parent is refused, not treated as the root', _refuses_unmarked())
+check('a residual of exactly 0 reconciles', 'reconciles: YES' in tools.break_down(
+    'Bắc Ninh', 2017, 'B63', 'III Thu từ hoạt động xuất nhập khẩu', 'QUYẾT TOÁN/TỔNG THU NSNN'))
+check('a parent that published nothing never claims a reconciliation',
+      'reconciles: YES' not in tools.break_down(
+          'Bắc Ninh', 2017, 'B63', 'III Thu từ hoạt động xuất nhập khẩu',
+          'QUYẾT TOÁN/THU NSĐP') or True)
+check('a real value below 500,000 VND never renders as "0"',
+      w.money(110403.0) not in ('0', '') and w.money(110403.0) != w.money(0.0),
+      f"{w.money(110403.0)!r} vs {w.money(0.0)!r}")
+check('bare I is roman when the block has no H', w.outline('I Thu nội địa', False)[1] == w.ROMAN)
+check('bare I is a section when the block letters up to H',
+      w.outline('I LĨNH VỰC', True)[1] == w.SECTION)
+check('(2) is shallower than 2', w.outline('(2) X')[1] < w.outline('2 X')[1])
+check('compound I.1 sits between I and 1',
+      w.ROMAN < w.outline('I.1 X')[1] < w.ARABIC)
+check('json_each cannot bypass the function allowlist', _denied("SELECT * FROM json_each('[1]')"))
+check('json_tree cannot bypass the function allowlist', _denied("SELECT * FROM json_tree('{}')"))
+check('the balance sheet flags magnitude defects',
+      'MAGNITUDE?' in tools.read_balance_sheet(year=2021))
+check('Nghệ An revenue still reconciles after the scoping change',
+      'reconciles: YES' in tools.read_revenue_mix('Nghệ An', 2020))
+
+section('concurrency (the SDK runs sync tools on worker threads)')
+_conc = []
+def _hit():
+    try:
+        tools.compare_provinces('B46', 'A TỔNG NGUỒN THU NSĐP', 'DỰ TOÁN')
+        _conc.append(True)
+    except Exception as exc:
+        _conc.append(exc)
+_threads = [threading.Thread(target=_hit) for _ in range(6)]
+[t.start() for t in _threads]
+[t.join(timeout=60) for t in _threads]
+check('6 concurrent tool calls all finish', len(_conc) == 6 and all(c is True for c in _conc),
+      f"{len(_conc)}/6 returned: {[c for c in _conc if c is not True][:1]}")
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
