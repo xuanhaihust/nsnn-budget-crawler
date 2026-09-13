@@ -77,6 +77,14 @@ Mỗi file Excel có 3 sheet:
 Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Chỉ tiêu · Loại số liệu ·
 Giá trị gốc · Giá trị chuẩn hóa · ĐVT · Quy đổi VND · Nguồn · Ghi chú.
 
+**Về cột `ĐVT`.** Các tỉnh viết đơn vị rất khác nhau — `Triệu đồng`, `triệu đồng`,
+`1.000.000 đồng`, thậm chí sai chính tả như `Tr đồng`, `Tiệu đồng`. Công cụ ghi về **một cách
+viết thống nhất** (`triệu đồng`, `nghìn đồng`, `đồng`, `tỷ đồng`), còn cách viết gốc của tỉnh
+vẫn được giữ ở cột `Ghi chú` để đối chiếu. Chuỗi nào không chắc chắn là đơn vị tiền thì để
+nguyên và **không** quy đổi.
+
+Muốn xem toàn bộ cách viết đơn vị đang có trong file kết quả: gõ `./nsnn --units`.
+
 Kết quả thực tế đã chạy:
 
 | Tỉnh | Số dòng |

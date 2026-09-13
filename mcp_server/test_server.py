@@ -263,6 +263,30 @@ check('the series glossary explains only terms that are on the menu', _glossary_
 check('an oversized argument is not echoed back whole',
       _province_error_len() < 1200, _province_error_len())
 
+section('unit spellings are unified, and only where it is safe')
+
+import importlib, sys as _sys
+_sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'pipeline'))
+_pu = importlib.import_module('parse_xml')
+for spelling in ('Triệu đồng', 'triệu đồng', 'Tr đồng', 'Tiệu đồng', 'Triệu dồng',
+                 'Triệu đổng', '1.000.000 đồng'):
+    check(f'{spelling!r} converts as triệu đồng',
+          _pu.unit_factor(spelling) == 1_000_000 and _pu.canon_unit(spelling) == 'triệu đồng',
+          f"{_pu.unit_factor(spelling)} / {_pu.canon_unit(spelling)!r}")
+for spelling in ('dòng', 'động', 'đóng', '2 dòng', 'số dòng'):
+    check(f'{spelling!r} is NOT read as currency', _pu.unit_factor(spelling) is None,
+          _pu.unit_factor(spelling))
+for spelling in ('%', '% (phần trăm)', 'đơn vị', 'dự án', 'Công an tỉnh'):
+    check(f'{spelling!r} still gets no VND', _pu.unit_factor(spelling) is None)
+check('the warehouse reports one spelling per currency unit',
+      sorted(r[0] for r in con.execute(
+          "SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%đồng%'")) ==
+      ['nghìn đồng', 'triệu đồng', 'tỷ đồng', 'đồng'],
+      [r[0] for r in con.execute("SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%đồng%'")])
+check('the published spelling is still recoverable',
+      con.execute("SELECT COUNT(DISTINCT unit_source) FROM v_fact WHERE unit='triệu đồng'"
+                  ).fetchone()[0] == 7)
+
 section('concurrency (the SDK runs sync tools on worker threads)')
 _conc = []
 def _hit():

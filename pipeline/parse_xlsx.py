@@ -6,7 +6,7 @@ def _tolerant(b, errors='strict', final=True):
     try: return _u16(b, errors, final)
     except UnicodeDecodeError: return _u16(b, 'replace', final)
 codecs.utf_16_le_decode = _tolerant
-from parse_xml import norm_num, unit_factor, clean_unit
+from parse_xml import norm_num, unit_factor, clean_unit, canon_unit
 
 N = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
 
@@ -155,8 +155,10 @@ def rows_from(path, rec, province):
             parts.append(row)
         header = [' / '.join(dict.fromkeys(x for x in col if x)).strip()
                   for col in zip(*parts)] if parts else []
-        unit = clean_unit(unit)
+        src_unit = clean_unit(unit)
+        unit = canon_unit(src_unit)        # one spelling per unit across all 34 provinces
         factor = unit_factor(unit)
+        unit_note = f"; ĐVT nguồn: {src_unit}" if src_unit != unit else ''
         for r in grid[data_i:]:
             if len(r) < 2: continue
             stt, label = (r[0] or '').strip(), (r[1] or '').strip()
@@ -188,5 +190,6 @@ def rows_from(path, rec, province):
                     'ĐVT': unit,
                     'Quy đổi VND': vnd,
                     'Nguồn': src,
-                    'Ghi chú': f"{rec.get('ReportCircular_Name','')}; XLSX TT343; report {rec.get('ID')}",
+                    'Ghi chú': f"{rec.get('ReportCircular_Name','')}; XLSX TT343; "
+                               f"report {rec.get('ID')}{unit_note}",
                 }

@@ -206,7 +206,11 @@ expose(tools.run_sql, 'nsnn_run_sql', """
     Tables: fact_row + dim_province/period/scope/table/indicator/series/unit/raw/report, and
     the view v_fact which joins them all. Query v_fact unless you need speed: its columns are
     province, period, year, kind, scope, table_label, form_code, indicator_raw, indicator,
-    depth, series, unit, raw, value, vnd, report_id, id.
+    depth, series, unit, unit_source, raw, value, vnd, report_id, id.
+
+    `unit` is the canonical spelling - group by it. `unit_source` is what that workbook
+    published; seven spellings map onto 'triệu đồng' alone, so grouping by unit_source
+    splits one unit into several.
 
     vnd is the money column (value x unit factor, NULL when the unit is unknown or is a
     percentage). `raw` is the untouched source text. `indicator_raw` keeps the outline marker

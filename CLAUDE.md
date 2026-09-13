@@ -117,6 +117,15 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   `unit_factor` now splits the string and reads the scale word, accepting a stated numeric
   multiplier (`1.000 đồng` → 1,000) and returning **None** for anything else, so an unknown
   spelling leaves `Quy đổi VND` blank instead of wrong.
+- **One spelling per unit, by allowlist — never by stripping diacritics.** 22 published ĐVT
+  spellings resolve to 4 currency units; `canon_unit` writes the canonical one and the source
+  spelling is kept (`Ghi chú` in the workbook, `v_fact.unit_source` in the warehouse). Six
+  currency spellings are listed literally in `parse_xml.CURRENCY`/`SCALE`, including the
+  attested misspellings `Triệu dồng`, `Tiệu đồng`, `Tr đồng`, `Triệu đổng` — 660 rows that
+  named đồng and never converted. Do **not** replace the allowlist with diacritic folding:
+  đồng, dồng, đổng, dòng, đóng and động all fold to `dong`, and `dòng` means LINE, so folding
+  turns a row count into money. `./nsnn --units` lists every spelling and what it resolves to;
+  anything under NOT CONVERTED that names đồng is a new spelling to check by hand.
 - **Unit strings arrive in NFD as well as NFC.** Some sources write `ê` as `e`+U+0323 and `ồ` as
   `ô`+U+0300. The string looks identical but never equals an NFC literal, so `"Triệu đồng"` from
   Hưng Yên (1,520 rows) and Lạng Sơn matched nothing and lost its conversion. `clean_unit`
