@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "nsnn": {
+      "command": ".venv/bin/python",
+      "args": ["mcp_server/server.py", "--transport", "stdio"],
+      "env": {}
+    }
+  }
+}

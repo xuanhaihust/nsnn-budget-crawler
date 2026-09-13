@@ -11,6 +11,10 @@ work/
 data/nsnn.db
 data/*.packing
 
+# the MCP server's folded search index: derived from nsnn.db, rebuilt in ~12s on first
+# use, and larger than the warehouse it indexes is worth. Never committed.
+data/nsnn-search.db
+
 # python
 .venv/
 __pycache__/

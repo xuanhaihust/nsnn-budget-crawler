@@ -1,0 +1,3 @@
+# Only for mcp_server/. The crawler itself needs nothing here - keep it out of the root
+# requirements.txt so `./nsnn` stays installable with just openpyxl and xlrd.
+mcp>=2.2.0

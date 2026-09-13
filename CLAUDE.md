@@ -35,6 +35,7 @@ cached by path, so a rebuild after a parser change takes seconds. Always use `.v
 | `pipeline/` | The code. `./nsnn` in the project root is the only entry point you need. |
 | `data/nsnn.db.xz` | The 3.8M-row SQLite warehouse, packed to 33 MB. `dashboard/db.py restore` unpacks it in ~13s. Ordinary git object, not LFS. |
 | `dashboard/` | `index.html` — a self-contained page over the warehouse. See `dashboard/README.md`. |
+| `mcp_server/` | The warehouse as an MCP server: 15 read-only tools for an AI agent. See `mcp_server/README.md`. |
 
 `work/raw/` is the evidence trail: every row traces back to a stored file with a SHA-256.
 Do not delete it — a province is ~10–250 MB (it was ~900 MB before PDFs were skipped).
@@ -128,6 +129,29 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   hides cell boundaries, so a greedy capture swallows every later cell. One row holding
   `"Đơn vị tính: %"`, `"Đơn vị: Triệu đồng"`, `"Đơn vị: Triệu đồng"` in three cells produced a
   unit that resolved to a currency and put a VND value on a percentage table.
+- **`dim_indicator.depth` is not the outline level.** It counts how many markers the ETL
+  stripped, and every label carries exactly one, so 3.32M of 3.8M rows are `depth=1`. In B63
+  the section head `A TỔNG THU CÂN ĐỐI NSNN`, the roman `I Thu nội địa`, the arabic `6 Thuế
+  bảo vệ môi trường` and the leaf `- Thuế BVMT thu từ hàng hóa nhập khẩu` are all depth 1.
+  Filtering on it to get "top-level items" returns the whole form and double counts by 3.6-7x.
+  Parse the marker back out of the raw label (`mcp_server/warehouse.outline`).
+- **Key a cell on `indicator_raw`, never on the cleaned `indicator`.** The outline marker is
+  part of the identity: `1.1 Chi giáo dục` is the investment line under `I Chi đầu tư phát
+  triển` and `1 Chi giáo dục` the recurrent one under `II Chi thường xuyên`, differing by 6.1x
+  in Bắc Ninh 2017. Keying on the cleaned label merges them and makes 1,555 B65 cells, 675
+  B64 and 337 B50 ambiguous; keying on the raw label leaves exactly 0 on all six main forms.
+  `dashboard/aggregate.py` keys on `clean` and drops those cells, which is why its comments
+  call B65 unusable for sector figures — on the raw key it is usable.
+- **Summing rows double counts, always.** A parent and its children are both rows, so
+  `SUM(vnd)` over one province-year of B46 is 3.95x-6.98x that province's own published total
+  (mean 5.75x, n=138). Scope children positionally by `fact_row.rowid` between a parent and
+  the next row at its level or shallower, take only the level directly below, and reconcile
+  against the published parent.
+- **757 values across 25 provinces sit 100x or further from their own cell's history.** They
+  pass every unit check because the declared unit is right; the usual shape is a thousands
+  separator read as a decimal point (Đồng Nai's 2021 B46 total is `28.709234` where 2020 and
+  2022 are `29106050` and `23556345`). Not corrected — flagged, and listed by
+  `nsnn_list_data_quality(block='magnitude')`.
 - CKNS name aliases: the Source Master says `Huế` and `TP Hồ Chí Minh`; CKNS says
   `Thừa Thiên Huế` and `Hồ Chí Minh`. Handled by `ALIAS` in `run.py`.
 
