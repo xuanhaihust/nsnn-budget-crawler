@@ -6,7 +6,7 @@ Needs data/nsnn.db (dashboard/db.py restore). No test framework: the project has
 script that exits non-zero is enough. Every assertion here corresponds to a rule in CLAUDE.md
 or to a defect found while building this.
 """
-import pathlib, sys, threading, time
+import pathlib, sys, threading, time, unicodedata
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -21,6 +21,31 @@ def _denied(sql):
         return False
     except sqlguard.Denied:
         return True
+
+
+def _bad_basis():
+    try:
+        tools.read_revenue_mix('Nghệ An', 2020, basis='banana')
+        return False
+    except ValueError:
+        return True
+
+
+def _glossary_scoped():
+    try:
+        tools.read_timeseries('Ninh Bình', 'B49', 'TỔNG CHI NGÂN SÁCH ĐỊA PHƯƠNG')
+        return False
+    except ValueError as exc:
+        msg = str(exc)
+        return 'NGÂN SÁCH HUYỆN =' in msg and 'QUYẾT TOÁN =' not in msg
+
+
+def _province_error_len():
+    try:
+        tools.resolve_province('x' * 50_000)
+        return 0
+    except ValueError as exc:
+        return len(str(exc))
 
 
 def _refuses_unmarked():
@@ -198,6 +223,45 @@ check('the balance sheet flags magnitude defects',
       'MAGNITUDE?' in tools.read_balance_sheet(year=2021))
 check('Nghệ An revenue still reconciles after the scoping change',
       'reconciles: YES' in tools.read_revenue_mix('Nghệ An', 2020))
+
+section('regressions from the second review round')
+
+_S45 = 'Quyết định đầu tư (hoặc QĐ điều chỉnh lần gần nhất) / Tổng mức đầu tư được duyệt / Tổng số'
+_h = tools.break_down('Bắc Ninh', 2019, '45/CK-NSNN',
+                      'H LĨNH VỰC NÔNG NGHIỆP, LẦM NGHIỆP, THỦY LỢI, THỦY SẢN', _S45)
+check('a section letter is not a false leaf when the block also uses romans',
+      'is a leaf' not in _h and '6 direct children' in _h, _h[:90])
+_i = tools.break_down('Bắc Ninh', 2019, '45/CK-NSNN',
+                      'I LĨNH VỰC HOẠT ĐỘNG CỦA CƠ QUAN QUẢN LÝ ĐỊA PHƯƠNG, ĐẢNG, ĐOÀN THỂ', _S45)
+check('a bare I that IS a section still resolves as one',
+      '14 direct children' in _i and 'reconciles: YES' in _i, _i[:90])
+check('a bare I that is roman still resolves as roman',
+      'reconciles: YES' in tools.read_revenue_mix('Nghệ An', 2020))
+
+check('a negative limit does not mean "no limit"',
+      len(tools.find_indicators('chi', limit=-1).splitlines()) < 8)
+check('an oversized limit is clamped',
+      len(tools.list_forms(limit=9999).splitlines()) < 110)
+check('an NFD label matches the NFC row',
+      'reconciles' in tools.break_down('Nghệ An', 2020, 'B63',
+                                       unicodedata.normalize('NFD', 'I Thu nội địa'),
+                                       'QUYẾT TOÁN/TỔNG THU NSNN'))
+check('a label the agent must copy is never truncated',
+      all('…' not in l.split('|')[0]
+          for l in tools.find_indicators('chi giao duc', limit=5).splitlines()[1:6]))
+check('an unknown basis is refused, not silently read as the plan', _bad_basis())
+check('English "settled" reaches the settled accounts',
+      'B63' in tools.read_revenue_mix('Nghệ An', 2020, basis='settled'))
+check('a broken series is flagged in read_timeseries too',
+      'MAGNITUDE?' in tools.read_timeseries('Đồng Nai', 'B46', 'B TỔNG CHI NSĐP', 'DỰ TOÁN'))
+check('the flag vocabulary is defined where an agent can see it',
+      all(k in tools.describe_corpus() for k in ('MAGNITUDE?', 'AMBIGUOUS', 'not_currency')))
+check('the sector tier warning names the denominator share actually uses',
+      'II Chi thường xuyên (what `share` uses)'
+      in tools.read_spending_by_sector('Nghệ An', 2022))
+check('the series glossary explains only terms that are on the menu', _glossary_scoped())
+check('an oversized argument is not echoed back whole',
+      _province_error_len() < 1200, _province_error_len())
 
 section('concurrency (the SDK runs sync tools on worker threads)')
 _conc = []

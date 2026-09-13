@@ -16,7 +16,7 @@ line under `I Chi đầu tư phát triển`) from `1 Chi giáo dục` (the recur
 merges them and makes 1,555 B65 cells ambiguous; keying on the raw label leaves exactly 0
 ambiguous on B46, B49, B50, B63, B64 and B65.
 """
-import functools, threading
+import functools, threading, unicodedata
 
 import search, sqlguard, warehouse as w
 from warehouse import DASH, flat, fold, money, outline, render
@@ -29,6 +29,25 @@ ALIAS = {'ha noi': 'Hà Nội', 'hanoi': 'Hà Nội', 'saigon': 'TP Hồ Chí Mi
          'thua thien hue': 'Huế', 'da nang': 'Đà Nẵng', 'danang': 'Đà Nẵng'}
 
 _LOCAL = threading.local()
+
+
+def clamp(n, lo, hi, default):
+    """Bound a caller-supplied count. SQLite reads a NEGATIVE limit as "no limit", so an
+    unclamped -1 returned the whole table - 2.5 MB of text through one tool call."""
+    try:
+        return max(lo, min(int(n), hi))
+    except (TypeError, ValueError):
+        return default
+
+
+def nfc(s):
+    """Normalise a caller's string before it is bound into SQL.
+
+    SQLite compares text bytewise, and this corpus contains labels in NFD as well as NFC
+    (CLAUDE.md records it). A label pasted back from a source that composed it differently
+    then matches nothing, with an error that shows a string identical to the one in the
+    database."""
+    return unicodedata.normalize('NFC', s) if isinstance(s, str) else s
 
 
 def con():
@@ -68,7 +87,7 @@ def resolve_province(name):
     if f in ALIAS:
         return ALIAS[f]
     raise ValueError(
-        f"no province named {raw!r}. The warehouse holds exactly these 34, and only under "
+        f"no province named {flat(raw, 60)!r}. The warehouse holds exactly these 34, and only under "
         f"their current (post-2025-merger) names:\n  " + ' · '.join(names) +
         "\nA pre-merger name (Bắc Giang, Hà Nam, Quảng Nam, Vĩnh Phúc, Bà Rịa - Vũng Tàu …) "
         "cannot be resolved here: the warehouse does not store the historical source name, so "
@@ -86,7 +105,8 @@ def cells(form_code, indicator, series=None, province=None, year=None):
     sql = """SELECT province, year, series, unit, COUNT(*) AS n,
                     MIN(vnd) AS lo, MAX(vnd) AS hi, MIN(id) AS id
              FROM v_fact WHERE form_code = ? AND indicator_raw = ? AND vnd IS NOT NULL"""
-    args = [form_code, indicator]
+    args = [form_code, nfc(indicator)]
+    series = nfc(series)
     for col, val in (('series', series), ('province', province), ('year', year)):
         if val is not None:
             sql += f" AND {col} = ?"
@@ -99,7 +119,7 @@ def series_for(form_code, indicator, province=None):
     """Which series columns publish this cell, commonest first."""
     sql = """SELECT series, COUNT(*) AS n, COUNT(DISTINCT province) AS nprov
              FROM v_fact WHERE form_code = ? AND indicator_raw = ? AND vnd IS NOT NULL"""
-    args = [form_code, indicator]
+    args = [form_code, nfc(indicator)]
     if province:
         sql += " AND province = ?"
         args.append(province)
@@ -134,17 +154,18 @@ def children(province, year, form_code, series, parent):
         """SELECT id, report_id, table_label FROM v_fact
            WHERE province = ? AND year = ? AND form_code = ? AND series = ?
              AND indicator_raw = ? ORDER BY id LIMIT 1""",
-        (province, int(year), form_code, series, parent)).fetchone()
+        (province, int(year), form_code, nfc(series), nfc(parent))).fetchone()
     if loc is None:
         return None, [], 0
     rows = [dict(r) for r in con().execute(
         """SELECT id, indicator_raw, vnd, value, unit, raw FROM v_fact
            WHERE province = ? AND year = ? AND form_code = ? AND series = ?
              AND report_id = ? AND table_label = ? ORDER BY id""",
-        (province, int(year), form_code, series, loc['report_id'], loc['table_label']))]
-    lettered = w.i_is_section(r['indicator_raw'] for r in rows)
+        (province, int(year), form_code, nfc(series), loc['report_id'], loc['table_label']))]
+    levels = w.block_levels(r['indicator_raw'] for r in rows)
+    parent = nfc(parent)
     idx = next((i for i, r in enumerate(rows) if r['id'] == loc['id']), None)
-    _, plevel = outline(parent, lettered)
+    plevel = levels[idx]
     if plevel is None:
         raise ValueError(
             f"{flat(parent, 70)!r} carries no outline marker, so its children cannot be "
@@ -152,8 +173,8 @@ def children(province, year, form_code, series, parent):
             "usually unmarked; break down the marked section rows beneath it instead - "
             "nsnn_run_sql with ORDER BY id over this form will show the rows in source order.")
     kids, scanned = [], 0
-    for r in rows[idx + 1:]:
-        _, lvl = outline(r['indicator_raw'], lettered)
+    for off, r in enumerate(rows[idx + 1:], start=idx + 1):
+        lvl = levels[off]
         if lvl is not None and lvl <= plevel:
             break
         scanned += 1
@@ -189,7 +210,7 @@ def money_rows(rows, label_key='indicator_raw'):
 # --- orientation ---------------------------------------------------------------------------
 
 @functools.lru_cache(maxsize=1)
-def describe_corpus():
+def describe_corpus() -> str:
     """START HERE. What is in the warehouse, and the four things that will otherwise go wrong."""
     c = con()
     one = lambda s: c.execute(s).fetchone()[0]
@@ -236,11 +257,23 @@ also stops about 50 records short of the portal's own declared total; that gap i
 MONEY: figures are reported in tỷ đồng (1e9 VND) unless a column says otherwise. Rows whose
 unit is a percentage or is unknown have no VND value and are never converted.
 
+FLAGS you will see in a `flag` column, or appended to a number. None of them is ever fixed
+for you - each marks something the source did that this server will not decide on your behalf:
+  MAGNITUDE?    this figure is 100x or more away from the same cell's own history, or from
+                the median province. Usually a thousands separator read as a decimal point.
+  AMBIGUOUS     the cell is published more than once with different values; both are shown
+                and neither is chosen.
+  implausible   the VND figure exceeds 1e15 - the source declared the wrong unit.
+  not_currency  a percentage or comparison column that inherited a đồng unit from its table.
+  imprecise     the figure is beyond 2^53, so the arithmetic is no longer exact.
+  !scale?       appended to a number above 1e15, for the same reason as implausible.
+  ?             a ratio whose numerator or denominator is itself flagged.
+
 NEXT: nsnn_find_indicators to get an exact label, then a read tool. Labels are verbatim
 Vietnamese and cannot be guessed."""
 
 
-def list_provinces():
+def list_provinces() -> str:
     """The 34 provinces with what each actually published."""
     rows = [dict(r) for r in con().execute(
         """SELECT p.name AS province, COUNT(f.rowid) AS rows_n,
@@ -257,7 +290,7 @@ def list_provinces():
                              "nsnn_list_data_quality)")
 
 
-def list_forms(min_provinces=25, limit=30):
+def list_forms(min_provinces: int = 25, limit: int = 30) -> str:
     """Forms published widely enough that a cross-province comparison means something."""
     rows = [dict(r) for r in con().execute(
         """SELECT t.form_code, COUNT(DISTINCT f.province_id) AS nprov, COUNT(*) AS rows_n,
@@ -267,7 +300,7 @@ def list_forms(min_provinces=25, limit=30):
            JOIN dim_period pe ON pe.id = f.period_id
            WHERE t.form_code <> ''
            GROUP BY t.form_code HAVING nprov >= ?
-           ORDER BY nprov DESC, rows_n DESC LIMIT ?""", (int(min_provinces), int(limit)))]
+           ORDER BY nprov DESC, rows_n DESC LIMIT ?""", (clamp(min_provinces, 0, 34, 25), clamp(limit, 1, 100, 30)))]
     for r in rows:
         r['example_title'] = flat(r['example_title'], 58)
     return render(rows, note=(
@@ -278,10 +311,12 @@ def list_forms(min_provinces=25, limit=30):
         "whose names differ per province and do not compare."))
 
 
-def find_indicators(query, form_code=None, min_provinces=1, limit=15):
+def find_indicators(query: str, form_code: str | None = None, min_provinces: int = 1,
+                    limit: int = 15) -> str:
     """Find exact indicator labels. Diacritics optional."""
     hits = search.indicators(query, form_code=form_code,
-                             min_provinces=int(min_provinces), limit=int(limit))
+                             min_provinces=clamp(min_provinces, 0, 34, 1),
+                             limit=clamp(limit, 1, 50, 15))
     if not hits:
         return (f"nothing matches {query!r}"
                 + (f" in form {form_code}" if form_code else '')
@@ -289,7 +324,7 @@ def find_indicators(query, form_code=None, min_provinces=1, limit=15):
                   "min_provinces. Search is diacritic-insensitive, so 'giao duc' and 'giáo "
                   "dục' are the same query, but it does not translate English - use Vietnamese "
                   "terms (chi = spending, thu = revenue, dự toán = plan, quyết toán = settled).")
-    rows = [{'indicator': flat(h['indicator'], 74), 'form_code': h['form_code'],
+    rows = [{'indicator': flat(h['indicator']), 'form_code': h['form_code'],
              'nprov': h['nprov'], 'rows': h['nrows'], 'with_vnd': h['nvnd'],
              'years': f"{h['y0']}-{h['y1']}"} for h in hits]
     return render(rows, hoist=False, note=(
@@ -300,9 +335,9 @@ def find_indicators(query, form_code=None, min_provinces=1, limit=15):
         "available series if you do not name one."))
 
 
-def find_forms(query, limit=10):
+def find_forms(query: str, limit: int = 10) -> str:
     """Find a form by its title rather than its code."""
-    hits = search.forms(query, limit=int(limit))
+    hits = search.forms(query, limit=clamp(limit, 1, 50, 10))
     if not hits:
         return f"no form title matches {query!r}"
     rows = [{'form_code': h['code'] or '(none)', 'title': flat(h['label'], 62),
@@ -312,6 +347,29 @@ def find_forms(query, limit=10):
 
 
 # --- reading values ------------------------------------------------------------------------
+
+GLOSS = [('QUYẾT TOÁN', 'settled accounts (the outturn)'),
+         ('DỰ TOÁN', 'the plan, not what was spent'),
+         ('TỔNG THU NSNN', 'all state revenue collected in the province'),
+         ('THU NSĐP', 'only the share the province keeps - a subset of TỔNG THU NSNN'),
+         ('NGÂN SÁCH CẤP TỈNH', 'the provincial tier only'),
+         ('NGÂN SÁCH HUYỆN', 'the district tier only'),
+         ('SO SÁNH', 'a percentage comparison column, not money'),
+         ('ƯỚC THỰC HIỆN', 'an in-year estimate, not final'),
+         ('TỔNG SỐ', 'the combined total of the tiers beside it')]
+
+
+def _glossary(series_labels):
+    """Explain only the terms that actually appear on the menu.
+
+    A fixed four-term glossary printed beside a three-item list explained three terms that
+    were not there and left the ones that were unexplained - which is worse than no glossary,
+    because it reads as authoritative.
+    """
+    joined = ' '.join(series_labels).upper()
+    hits = [f"{k} = {v}" for k, v in GLOSS if k in joined]
+    return ('What these mean: ' + '; '.join(hits) + '.') if hits else ''
+
 
 def _pick_series(form_code, indicator, series, province=None):
     """Resolve the series, or raise with the actual choices. Never guess between two."""
@@ -337,34 +395,46 @@ def _pick_series(form_code, indicator, series, province=None):
         + '\n  '.join(f"{o['series']}  ({o['n']} values"
                       + (f", {o['nprov']} provinces" if not province else '') + ')'
                       for o in opts[:8])
-        + "\nDỰ TOÁN is the plan, QUYẾT TOÁN the settled accounts; TỔNG THU NSNN is total "
-          "state revenue collected in the province, THU NSĐP only the part the province keeps.")
+        + "\n" + _glossary(o['series'] for o in opts[:8]))
 
 
-def read_timeseries(province, form_code, indicator, series=None):
+def read_timeseries(province: str, form_code: str, indicator: str,
+                    series: str | None = None) -> str:
     """One named cell of one named form, for one province, across every year it was published."""
     province = resolve_province(province)
     series = _pick_series(form_code, indicator, series, province)
     rows = cells(form_code, indicator, series, province=province)
     if not rows:
         return f"no values for {indicator!r} on {form_code} / {series} in {province}"
+    # A series can carry a 1,000,000x discontinuity and look perfectly ordinary year by year.
+    # Flag against the spread of the series itself, the way the sibling tools flag against the
+    # cross-province median - reported, never corrected.
+    vals = sorted(r['lo'] for r in rows if r['lo'] and r['lo'] > 0)
+    broken = bool(vals) and vals[-1] > vals[0] * 100
     out = []
     for r in rows:
         amb = r['n'] > 1 and r['lo'] != r['hi']
         out.append({'year': r['year'],
                     'ty': '' if amb else money(r['lo']),
-                    'flag': 'AMBIGUOUS' if amb else w.confidence(r['lo'], series, r['unit']),
+                    'flag': ('AMBIGUOUS' if amb else 'MAGNITUDE?' if broken
+                             else w.confidence(r['lo'], series, r['unit'])),
                     'n_cells': r['n'],
                     'range': f"{money(r['lo'])}..{money(r['hi'])}" if amb else ''})
     note = (f"{province} · {form_code} · {series} · {flat(indicator, 70)} · tỷ đồng. "
             "One published cell per year - nothing is summed here.")
+    if broken:
+        note += ("\nEVERY year is marked MAGNITUDE? because this cell's own published history "
+                 f"spans {vals[-1]/vals[0]:,.0f}x between its largest and smallest year. Some of "
+                 "these figures are wrong and the warehouse cannot say which - see "
+                 "nsnn_list_data_quality(block='magnitude').")
     if any(o['flag'] == 'AMBIGUOUS' for o in out):
         note += (" AMBIGUOUS years are published more than once with different values; the "
                  "range shows both. They are not averaged or picked between.")
     return render(out, note=note)
 
 
-def compare_provinces(form_code, indicator, series=None, year=None):
+def compare_provinces(form_code: str, indicator: str, series: str | None = None,
+                      year: int | None = None) -> str:
     """The same named cell across provinces for one year, with explicit coverage."""
     series = _pick_series(form_code, indicator, series)
     if year is None:
@@ -409,7 +479,7 @@ B46 = {'revenue': 'A TỔNG NGUỒN THU NSĐP', 'spend': 'B TỔNG CHI NSĐP',
        'borrowing': 'Đ TỔNG MỨC VAY CỦA NSĐP'}
 
 
-def read_balance_sheet(year=None, province=None):
+def read_balance_sheet(year: int | None = None, province: str | None = None) -> str:
     """Form B46, the provincial balance sheet: the one form where ranking provinces is sound."""
     if province:
         province = resolve_province(province)
@@ -448,7 +518,11 @@ def read_balance_sheet(year=None, province=None):
         "THESE ARE PLANS (dự toán), not settled accounts - the outturn differs.\n"
         "self_suff = own / revenue; inv_share = investment / spend. Both divide two published "
         "cells, so neither sums line items; a ratio shows '?' when either operand is flagged.\n"
-        "Rows marked MAGNITUDE? hold a figure 100x or more away from that cell's own history in "
+        + (f"ROWS ARE DIFFERENT YEARS ({min(y for _, y in got)}-{max(y for _, y in got)}): each "
+           "province's most recent year carrying both cells. Ranking them against each other "
+           "compares budgets set years apart - pass year= for one comparable year.\n"
+           if len({y for _, y in got}) > 1 else '')
+        + "Rows marked MAGNITUDE? hold a figure 100x or more away from that cell's own history in "
         "this province - a source defect, shown as published and not corrected. See "
         "nsnn_list_data_quality(block='magnitude').\n" + coverage(
             [{'province': p} for p, _ in got])))
@@ -483,7 +557,8 @@ def magnitude_flag(vnd, median):
 
 # --- breakdowns: the alternative to summing --------------------------------------------------
 
-def break_down(province, year, form_code, indicator, series=None):
+def break_down(province: str, year: int, form_code: str, indicator: str,
+               series: str | None = None) -> str:
     """Split a published parent into its direct children and reconcile. Use this, never SUM."""
     province = resolve_province(province)
     series = _pick_series(form_code, indicator, series, province)
@@ -532,11 +607,30 @@ def break_down(province, year, form_code, indicator, series=None):
     return render(rows, hoist=False, note=note)
 
 
-def read_revenue_mix(province, year=None, basis='quyết toán'):
+def _basis(basis):
+    """True for settled accounts, False for the plan. Anything else raises.
+
+    A substring test fell through to the PLAN for every value it did not recognise - including
+    the English words 'settled' and 'actual', which an agent reaches for naturally. Returning
+    a budget estimate to someone who asked for the outturn is the single wrong answer this
+    corpus most easily produces, so an unknown basis is refused instead.
+    """
+    f = fold(basis)
+    if any(k in f for k in ('quyet toan', 'quyettoan', 'settled', 'outturn', 'actual', 'final')):
+        return True
+    if any(k in f for k in ('du toan', 'dutoan', 'plan', 'budget', 'estimate')):
+        return False
+    raise ValueError(
+        f"basis={basis!r} is not recognised, and this tool will not fall back to one or the "
+        "other - a plan and a settled account are different numbers. Pass 'quyết toán' "
+        "(settled accounts / outturn) or 'dự toán' (plan / budget estimate); the English "
+        "words 'settled', 'outturn', 'actual', 'plan' and 'estimate' also work.")
+
+
+def read_revenue_mix(province: str, year: int | None = None, basis: str = 'quyết toán') -> str:
     """Where a province's domestic revenue comes from (form B63)."""
     province = resolve_province(province)
-    series = ('QUYẾT TOÁN/TỔNG THU NSNN' if 'quyết' in fold(basis).replace('quyet', 'quyết')
-              or 'quyet' in fold(basis) else 'DỰ TOÁN/TỔNG THU NSNN')
+    series = 'QUYẾT TOÁN/TỔNG THU NSNN' if _basis(basis) else 'DỰ TOÁN/TỔNG THU NSNN'
     if year is None:
         yr = con().execute(
             """SELECT MAX(year) FROM v_fact WHERE province = ? AND form_code = 'B63'
@@ -548,11 +642,11 @@ def read_revenue_mix(province, year=None, basis='quyết toán'):
     return break_down(province, year, 'B63', 'I Thu nội địa', series)
 
 
-def read_spending_by_sector(province, year=None, basis='dự toán'):
+def read_spending_by_sector(province: str, year: int | None = None,
+                            basis: str = 'dự toán') -> str:
     """Recurrent spending by sector - PROVINCIAL TIER ONLY (forms B50 / B65)."""
     province = resolve_province(province)
-    f = fold(basis)
-    form, series = (('B65', 'QUYẾT TOÁN') if 'quyet' in f else ('B50', 'DỰ TOÁN'))
+    form, series = ('B65', 'QUYẾT TOÁN') if _basis(basis) else ('B50', 'DỰ TOÁN')
     if year is None:
         yr = con().execute(
             """SELECT MAX(year) FROM v_fact WHERE province = ? AND form_code = ?
@@ -566,18 +660,25 @@ def read_spending_by_sector(province, year=None, basis='dự toán'):
                   province=province, year=int(year))
     tier = cells(form, 'B CHI NGÂN SÁCH CẤP TỈNH THEO LĨNH VỰC', series,
                  province=province, year=int(year))
+    rec = cells(form, 'II Chi thường xuyên', series, province=province, year=int(year))
     warn = ("\nTIER WARNING: form " + form + " is 'chi ngân sách CẤP TỈNH theo lĩnh vực' - the "
             "PROVINCIAL tier only. Section A is the block transfer to districts and is not "
-            "broken down by sector anywhere in this corpus.")
-    if split or tier:
-        warn += ("\n  A transfer to districts = " + (money(split[0]['lo']) if split else '?')
-                 + " tỷ\n  B provincial tier      = " + (money(tier[0]['lo']) if tier else '?')
-                 + " tỷ\nA sector share below is a share of B, NOT of the province's total "
-                   "spending. Reporting it as province-wide roughly halves the real figure.")
+            "broken down by sector anywhere in this corpus.\n"
+            "The `share` column above divides by the parent it was taken from, "
+            "II Chi thường xuyên = " + (money(rec[0]['lo']) if rec else '?') + " tỷ, which is "
+            "RECURRENT spending at the provincial tier. It is not a share of B, and it is not "
+            "a share of the province's total. The three denominators, smallest first:")
+    for label, got in (('II Chi thường xuyên (what `share` uses)', rec),
+                       ('B provincial tier, incl. investment', tier),
+                       ('A transfer to districts, not broken down', split)):
+        warn += "\n  " + label.ljust(42) + ' = ' + (money(got[0]['lo']) if got else '?') + ' tỷ'
+    warn += ("\nQuoting a sector figure as the province's spending on that sector overstates "
+             "how much of the province it covers, in some cases by more than half.")
     return body + warn
 
 
-def compare_plan_vs_outturn(province=None, year=None, indicator='I Thu nội địa'):
+def compare_plan_vs_outturn(province: str | None = None, year: int | None = None,
+                            indicator: str = 'I Thu nội địa') -> str:
     """Plan against settled accounts - both columns of form B63, so no cross-form join."""
     if province:
         province = resolve_province(province)
@@ -606,7 +707,8 @@ def compare_plan_vs_outturn(province=None, year=None, indicator='I Thu nội đ�
 
 # --- honesty surface -------------------------------------------------------------------------
 
-def list_data_quality(province=None, block='pending', limit=25):
+def list_data_quality(province: str | None = None, block: str = 'pending',
+                      limit: int = 25) -> str:
     """What this corpus does NOT reliably tell you. Four blocks; every one is measured."""
     if province:
         province = resolve_province(province)
@@ -621,7 +723,7 @@ def list_data_quality(province=None, block='pending', limit=25):
             sql += " AND p.name = ?"
             args.append(province)
         sql += " ORDER BY p.name LIMIT ?"
-        args.append(int(limit))
+        args.append(clamp(limit, 1, 200, 25))
         rows = [dict(r) for r in con().execute(sql, args)]
         tot = con().execute(
             "SELECT COUNT(*) FROM dim_report r JOIN dim_province p ON p.id=r.province_id "
@@ -651,7 +753,7 @@ def list_data_quality(province=None, block='pending', limit=25):
                 rows.append({'province': prov, 'form': form, 'indicator': flat(ind, 34),
                              'spread': f"{max(vals)/min(vals):.0f}x",
                              'by_year': ' '.join(f"{y}:{money(v)}" for y, v in sorted(ys))})
-        return render(rows[:int(limit)], hoist=False, note=(
+        return render(rows[:clamp(limit, 1, 200, 25)], hoist=False, note=(
             f"{len(rows)} headline cells whose own published history spans 100x or more between "
             "its largest and smallest year. Across the seven main forms, 757 individual values "
             "in 25 provinces sit 100x or further from their cell's median.\n"
@@ -667,7 +769,7 @@ def list_data_quality(province=None, block='pending', limit=25):
             """SELECT u.label AS unit, u.factor, COUNT(*) AS n FROM fact_row f
                JOIN dim_unit u ON u.id = f.unit_id
                WHERE u.factor = 0 AND u.label <> '' GROUP BY u.label
-               ORDER BY n DESC LIMIT ?""", (int(limit),))]
+               ORDER BY n DESC LIMIT ?""", (clamp(limit, 1, 200, 25),))]
         return render(rows, hoist=False, note=(
             "Units with factor 0 get NO VND value, deliberately. Percentages and unitless "
             "tables correctly have none. The misspelled currency units here (Triệu dồng, Tiệu "
@@ -687,7 +789,8 @@ def list_data_quality(province=None, block='pending', limit=25):
             "year)")
 
 
-def trace_source(province, form_code, indicator, year, series=None):
+def trace_source(province: str, form_code: str, indicator: str, year: int,
+                 series: str | None = None) -> str:
     """The evidence chain for one number: the untouched source cell and the report it came from."""
     province = resolve_province(province)
     series = _pick_series(form_code, indicator, series, province)
@@ -717,7 +820,7 @@ def trace_source(province, form_code, indicator, year, series=None):
         "SHA-256, in a full checkout."))
 
 
-def run_sql(sql, max_rows=200):
+def run_sql(sql: str, max_rows: int = 200) -> str:
     """The escape hatch: one read-only SELECT over the warehouse."""
     cols, rows, truncated, ms = sqlguard.run(sql, max_rows=max_rows)
     if not rows:

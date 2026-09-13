@@ -125,16 +125,35 @@ def marker(label):
     return m.group(1) if m else ''
 
 
-def i_is_section(labels):
-    """Is a bare `I` in this block a section letter rather than roman one?
+def block_levels(labels):
+    """Outline level for every row of one block, resolving the bare-`I` ambiguity by lookahead.
 
-    Only contiguity tells them apart. A form lettered A, B, C, D, E, G, H continues with I, so
-    there the `I` row is a sibling of `H`. Form B63 letters only its `A` section and nests
-    romans I, II, III beneath it, so there `I` is roman - and getting that backwards makes a
-    breakdown of `I Thu nội địa` absorb the whole form. The deciding signal is whether the
-    block also carries an `H` marker: the letter run has to reach H before it reaches I.
+    A block-wide flag cannot do this. Forms 45/CK-NSNN and 58/CK-NSNN letter their sections
+    A, B, C ... H, I, K AND use romans I, II, III as agency headings under every one of them,
+    so the same block needs `I` read both ways. Deciding it once per block made every section
+    letter in 1,259 blocks across 20 provinces report as a childless leaf.
+
+    The lookahead: from a bare `I`, scan forward. Hitting `II` first means this `I` opened a
+    roman run. Hitting another bare `I`, or a different single section letter, first means the
+    roman run belongs to somebody else and this `I` continues the letter run.
     """
-    return 'H' in {marker(lab).rstrip('.)').strip() for lab in labels}
+    labels = list(labels)
+    marks = [marker(l) for l in labels]
+    bare = [m.rstrip('.)').lstrip('(').strip() for m in marks]
+    out = []
+    for i, b in enumerate(bare):
+        if b != 'I':
+            out.append(outline(labels[i])[1])
+            continue
+        roman = False
+        for nxt in bare[i + 1:]:
+            if nxt == 'II':
+                roman = True
+                break
+            if nxt == 'I' or (len(nxt) == 1 and nxt in _LETTER_ALWAYS):
+                break
+        out.append(ROMAN if roman else SECTION)
+    return out
 
 
 def outline(label, lettered=False):
@@ -145,7 +164,8 @@ def outline(label, lettered=False):
     (TỔNG CHI NSĐP, TỔNG THU NGÂN SÁCH NHÀ NƯỚC), and treating those as "shallower than
     everything" makes a breakdown swallow the whole form.
 
-    `lettered` comes from i_is_section() for the surrounding block.
+    `lettered` is a fallback for a lone label; within a block use block_levels(), which
+    resolves `I` by lookahead instead of by a single flag for the whole block.
     """
     mk = marker(label)
     if not mk:

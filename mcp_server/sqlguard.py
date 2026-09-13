@@ -23,7 +23,7 @@ cap you believe you applied is simply gone.
 """
 import sqlite3, time
 
-from warehouse import DB, READABLE, connect
+from warehouse import READABLE, connect
 
 # Eponymous virtual tables compiled into this build that are NOT schema objects, so the
 # "unknown name is a CTE" rule below must never let them through.
@@ -69,7 +69,7 @@ class Denied(Exception):
 def _schema():
     global _SCHEMA
     if not _SCHEMA:
-        con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        con = connect(authorizer=None)      # not a bare sqlite3.connect: this one explains
         _SCHEMA = {r[0].lower() for r in con.execute("select name from sqlite_master")}
         con.close()
     return _SCHEMA
