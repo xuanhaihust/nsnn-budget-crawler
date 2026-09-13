@@ -89,6 +89,37 @@ Kết quả thực tế đã chạy:
 
 ---
 
+## Hỏi dữ liệu bằng trợ lý AI (tuỳ chọn)
+
+Phần này dành cho ai muốn dùng Claude hoặc một trợ lý AI khác để **hỏi thẳng vào dữ liệu**
+thay vì mở từng file Excel. Không bắt buộc — bỏ qua cũng không ảnh hưởng gì.
+
+Toàn bộ 34 tỉnh đã được gộp sẵn vào một kho dữ liệu nén kèm trong dự án. Chạy hai dòng này
+một lần duy nhất:
+
+```bash
+.venv/bin/python dashboard/db.py restore
+.venv/bin/pip install -r mcp_server/requirements.txt
+```
+
+Xong. Nếu bạn mở dự án bằng **Claude Code**, các công cụ tra cứu tự xuất hiện, không cần làm
+gì thêm. Bạn có thể hỏi những câu như *“tỉnh nào tự chủ ngân sách cao nhất”*, *“Nghệ An thu
+từ đất bao nhiêu năm 2020”*, *“so sánh chi giáo dục giữa các tỉnh”*.
+
+**Vì sao phải có công cụ riêng, không để AI tự viết truy vấn?** Vì biểu mẫu ngân sách có cấu
+trúc lồng nhau: dòng tổng và các dòng chi tiết của nó nằm cạnh nhau trong bảng. Cộng tất cả
+lại sẽ ra con số **gấp khoảng 6 lần** số mà chính tỉnh công bố — và không có gì báo hiệu điều
+đó. Bộ công cụ này được viết để AI không rơi vào bẫy đó: nó chỉ đọc đúng ô đã công bố, hoặc
+tách một dòng cha ra các dòng con rồi **báo rõ phần chênh lệch** để bạn tự thấy có khớp hay
+không.
+
+Nó cũng **không tự sửa số**. Chỗ nào dữ liệu nguồn có vấn đề, nó gắn cờ cảnh báo và giữ
+nguyên con số như đã công bố.
+
+Chi tiết kỹ thuật: xem `mcp_server/README.md` và `docs/2026-09-13-mcp-server.md`.
+
+---
+
 ## Nguyên tắc số liệu
 
 Công cụ lấy đúng như nguồn công bố, **không tự suy đoán**:

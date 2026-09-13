@@ -134,7 +134,7 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   the section head `A TỔNG THU CÂN ĐỐI NSNN`, the roman `I Thu nội địa`, the arabic `6 Thuế
   bảo vệ môi trường` and the leaf `- Thuế BVMT thu từ hàng hóa nhập khẩu` are all depth 1.
   Filtering on it to get "top-level items" returns the whole form and double counts by 3.6-7x.
-  Parse the marker back out of the raw label (`mcp_server/warehouse.outline`).
+  Parse the marker back out of the raw label (`mcp_server/warehouse.block_levels`).
 - **Key a cell on `indicator_raw`, never on the cleaned `indicator`.** The outline marker is
   part of the identity: `1.1 Chi giáo dục` is the investment line under `I Chi đầu tư phát
   triển` and `1 Chi giáo dục` the recurrent one under `II Chi thường xuyên`, differing by 6.1x
@@ -147,6 +147,27 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   (mean 5.75x, n=138). Scope children positionally by `fact_row.rowid` between a parent and
   the next row at its level or shallower, take only the level directly below, and reconcile
   against the published parent.
+- **A bare `I` is a section letter in some forms and a roman numeral in others — and both in
+  the same form.** 45/CK-NSNN and 58/CK-NSNN letter their sections A…H, I, K AND use romans
+  I, II, III as agency headings under every one of them. Deciding it once per block (does the
+  block contain an `H`?) shipped once and made `break_down` assert "is a leaf" for **9,919
+  section rows in 1,259 blocks across 20 provinces** that have children. `block_levels`
+  resolves it per row by lookahead: from a bare `I`, reaching `II` before another bare `I` or
+  another section letter means a roman run opened here. Never decide this per block.
+- **An unparseable outline marker is a hard stop, never a wildcard.** 19,433 distinct labels
+  carry no marker at all, including every headline total (`TỔNG CHI NSĐP`, `TỔNG THU NGÂN
+  SÁCH NHÀ NƯỚC`). Treating "unknown" as "shallower than everything" made a breakdown swallow
+  whole sibling sections and still report that it reconciled.
+- **Scope a positional scan to the parent's own report AND table.** 4,016 of 83,559
+  (province, year, form, series) blocks span more than one report, because two reports can
+  publish the same form code and a same-named series column in the same year. Without it a
+  Cà Mau parent of 977 tỷ collected 28 children from another document summing 52,850 tỷ.
+- **Never let a non-zero VND render as `0`.** 34,306 rows carry a real value below 500,000
+  VND, which three decimals of tỷ đồng rounds away. Printing those as `0` makes a published
+  figure indistinguishable from a published zero — the blank-is-not-zero rule, inverted at
+  the formatting layer instead of the parsing one.
+- **SQLite reads a negative LIMIT as "no limit".** An unclamped caller-supplied `limit` of -1
+  returned the whole table: 2.5 MB of text through one tool call. Clamp every count.
 - **757 values across 25 provinces sit 100x or further from their own cell's history.** They
   pass every unit check because the declared unit is right; the usual shape is a thousands
   separator read as a decimal point (Đồng Nai's 2021 B46 total is `28.709234` where 2020 and
@@ -176,6 +197,11 @@ All 34 provinces are built and committed under `output/` (tracked by Git LFS): 3
 0 failed reports, 500 entries across the Pending_Review sheets. Run `./nsnn --status` for the
 live list.
 Manual, portal-sourced, kept in `samples/`: Hải Phòng, Huế.
+
+`mcp_server/` serves the warehouse to AI agents over MCP (stdio or streamable HTTP): 15
+read-only tools, 97 checks in `mcp_server/test_server.py`. Two rounds of adversarial review
+found and fixed 26 defects — see `docs/2026-09-13-mcp-server.md`. Run the tests with
+`.venv/bin/python mcp_server/test_server.py` after touching anything under `mcp_server/`.
 
 ## Working agreement
 

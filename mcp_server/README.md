@@ -41,13 +41,16 @@ reconciles: YES
 24 rows sit under this parent in the source; only the 18 at one level deeper are summed.
 ```
 
-Three things had to be right for that to work.
+Four things had to be right for that to work.
 
 **Children are scoped by position, not by pattern.** Arabic numbering restarts under every
 roman section, so filtering rows whose marker looks like a number mixes the children of `I`
 with those of `II`; on one B50 case the residual went to −5,366,746,000,000 VND. `v_fact.id`
 is `fact_row.rowid`, which is source row order, so the children of a parent are the rows after
-it up to the next row at its level or shallower.
+it up to the next row at its level or shallower — and only within the parent's own report and
+table, because 4,016 of 83,559 (province, year, form, series) blocks span more than one
+report. Without that bound, one Cà Mau parent of 977 tỷ collected 28 children from a different
+document summing 52,850 tỷ.
 
 **Only direct children are summed.** Dash rows beneath a numbered line are its parts, not its
 siblings. Including them turned that −2 triệu residual into a 2.3 trillion overstatement.
@@ -56,7 +59,21 @@ siblings. Including them turned that −2 triệu residual into a 2.3 trillion o
 stripped, and every label carries exactly one, so 3.32M of 3.8M rows are `depth=1`. In B63 the
 section head `A TỔNG THU CÂN ĐỐI NSNN`, the roman `I Thu nội địa`, the arabic `6 Thuế bảo vệ
 môi trường` and the leaf `- Thuế BVMT thu từ hàng hóa nhập khẩu` are all depth 1. The outline
-level is parsed back out of the raw label by `warehouse.outline`.
+level is parsed back out of the raw label by `warehouse.block_levels`.
+
+**A bare `I` cannot be levelled one label at a time, or one block at a time.** In B63 it is a
+roman numeral nested under section `A`. In forms 45/CK-NSNN and 58/CK-NSNN it is a section
+letter continuing the run A…H, I, K — *and those same forms also use romans I, II, III as
+agency headings under every section*, so one block needs it read both ways. Deciding it once
+per block shipped once and made `break_down` assert "is a leaf" for 9,919 section rows in
+1,259 blocks across 20 provinces that have children. `block_levels` resolves it per row by
+lookahead: from a bare `I`, reaching `II` before another bare `I` or another section letter
+means a roman run opened here.
+
+**An unparseable marker is a hard stop.** 19,433 distinct labels carry no marker at all,
+including every headline total. Treating "unknown" as "shallower than everything" made the
+scan swallow whole sibling sections and still report that it reconciled, so `break_down` now
+refuses such a parent and says why.
 
 ## Cells are keyed on the raw label, marker and all
 
@@ -194,7 +211,18 @@ The project's data rules are enforced at the serialization layer, not just in th
 | `test_server.py` | `.venv/bin/python mcp_server/test_server.py` |
 
 `tools.py` deliberately knows nothing about MCP, so every rule above can be tested by calling
-a function.
+a function. `test_server.py` holds 97 checks, including a 15-case attack suite and six
+concurrent calls.
+
+Two implementation facts worth knowing before editing:
+
+* **Connections are per thread.** The SDK dispatches every sync tool through
+  `anyio.to_thread.run_sync`, so concurrent calls land on different worker threads. One shared
+  `sqlite3` connection with `check_same_thread=False` deadlocked 6 of 8 trials of two
+  overlapping calls. Connections cost 0.23 ms; open one per thread.
+* **Clamp every caller-supplied count, and normalise every label argument to NFC.** SQLite
+  reads a negative `LIMIT` as "no limit" (one call returned 2.5 MB of text), and it compares
+  text bytewise, so an NFD-composed label matches nothing while looking identical to the row.
 
 ## HTTP
 
@@ -212,6 +240,17 @@ reach the port.
 
 `--json-response --stateless` makes it answer a single unauthenticated `curl` POST with plain
 JSON and no session handshake, which is useful from a notebook.
+
+## What two review rounds changed
+
+The server worked before any of this; none of it was found by tests passing. Four adversarial
+reviewers (correctness, security, protocol, agent-UX) found 10 defects, and a second pass told
+to refute the first pass's findings confirmed 16 more and rejected 13. Full account in
+`docs/2026-09-13-mcp-server.md`.
+
+The one worth repeating here: **the fix for round one's `I`-levelling bug caused round two's
+worst defect.** A block-wide decision cannot express a form that uses `I` both ways. If you
+touch `block_levels`, run the tests — three of them exist only to hold that line.
 
 ## Scope limit
 

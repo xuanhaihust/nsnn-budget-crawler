@@ -88,6 +88,28 @@ for nm,grid in parse_xlsx.sheet_rows(out/f['path']):
 Header detection lives in `is_header_row` / `RE_IDX` / `RE_LBL` in `parse_xlsx.py`. Broaden
 those patterns rather than special-casing a single file.
 
+## Querying the built data instead of re-crawling
+
+Do not re-crawl to answer a question about data that is already collected. All 34 provinces
+are in `data/nsnn.db.xz`; `dashboard/db.py restore` unpacks it in ~18s.
+
+`mcp_server/` exposes it as 15 read-only MCP tools (`nsnn_*`), which are already wired up by
+the repo's `.mcp.json`. Reach for those before writing SQL — they encode correctness rules
+raw SQL does not.
+
+The one you must not forget if you do write SQL: **never `SUM` across a hierarchy.** A parent
+and its children are both rows in `fact_row`, so `SUM(vnd)` over one province-year of B46 is
+3.95x-6.98x that province's own published total. Use `nsnn_break_down`, which reconciles
+against the published parent, or read a single named cell.
+
+Two more that cost real bugs: key a cell on `indicator_raw`, never the cleaned `indicator`
+(the outline marker is part of the identity); and `dim_indicator.depth` is not the outline
+level, it is 1 for 87% of rows.
+
+After changing anything under `mcp_server/`, run
+`.venv/bin/python mcp_server/test_server.py` — 97 checks, and several exist to hold lines that
+have broken before. Background in `docs/2026-09-13-mcp-server.md`.
+
 ## Rules you must not break
 
 From the project owner, repeated here because they are easy to violate while "improving"
