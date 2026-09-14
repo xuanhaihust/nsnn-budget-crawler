@@ -270,19 +270,32 @@ _sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'pipeli
 _pu = importlib.import_module('parse_xml')
 for spelling in ('Triệu đồng', 'triệu đồng', 'Tr đồng', 'Tiệu đồng', 'Triệu dồng',
                  'Triệu đổng', '1.000.000 đồng'):
-    check(f'{spelling!r} converts as triệu đồng',
-          _pu.unit_factor(spelling) == 1_000_000 and _pu.canon_unit(spelling) == 'triệu đồng',
+    check(f'{spelling!r} is 1e6 and reports as VND',
+          _pu.unit_factor(spelling) == 1_000_000 and _pu.canon_unit(spelling) == 'VND',
           f"{_pu.unit_factor(spelling)} / {_pu.canon_unit(spelling)!r}")
+for spelling, f in (('đồng', 1), ('Nghìn đồng', 1_000), ('tỷ đồng', 1_000_000_000),
+                    ('VND', 1), ('vnd', 1)):
+    check(f'{spelling!r} is {f:,} and reports as VND',
+          _pu.unit_factor(spelling) == f and _pu.canon_unit(spelling) == 'VND',
+          f"{_pu.unit_factor(spelling)} / {_pu.canon_unit(spelling)!r}")
+check('re-applying the VND rule is a no-op (factor 1)', _pu.unit_factor('VND') == 1)
+check('a scale word before VND is refused, not doubled',
+      _pu.unit_factor('triệu VND') is None, _pu.unit_factor('triệu VND'))
 for spelling in ('dòng', 'động', 'đóng', '2 dòng', 'số dòng'):
     check(f'{spelling!r} is NOT read as currency', _pu.unit_factor(spelling) is None,
           _pu.unit_factor(spelling))
 for spelling in ('%', '% (phần trăm)', 'đơn vị', 'dự án', 'Công an tỉnh'):
     check(f'{spelling!r} still gets no VND', _pu.unit_factor(spelling) is None)
-check('the warehouse reports one spelling per currency unit',
-      sorted(r[0] for r in con.execute(
-          "SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%đồng%'")) ==
-      ['nghìn đồng', 'triệu đồng', 'tỷ đồng', 'đồng'],
-      [r[0] for r in con.execute("SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%đồng%'")])
+check('the warehouse reports exactly one currency unit',
+      [r[0] for r in con.execute(
+          "SELECT DISTINCT unit FROM v_fact WHERE unit='VND' OR unit LIKE '%đồng%'")] == ['VND'],
+      [r[0] for r in con.execute(
+          "SELECT DISTINCT unit FROM v_fact WHERE unit='VND' OR unit LIKE '%đồng%'")])
+check('a VND row needs no further conversion: value equals vnd',
+      con.execute("SELECT COUNT(*) FROM v_fact WHERE unit='VND' AND vnd IS NOT NULL "
+                  "AND value <> vnd").fetchone()[0] == 0,
+      con.execute("SELECT COUNT(*) FROM v_fact WHERE unit='VND' AND vnd IS NOT NULL "
+                  "AND value <> vnd").fetchone()[0])
 for spelling in ('%', '% (phần trăm)', 'Phần trăm (%)', '%(phần trăm)'):
     check(f'{spelling!r} reports as %', _pu.canon_unit(spelling) == '%', _pu.canon_unit(spelling))
 for spelling in ('% so với dự toán', 'tỷ lệ %', 'đơn vị', 'dự án'):
@@ -291,9 +304,9 @@ check('the warehouse reports one spelling for percent',
       con.execute("SELECT COUNT(DISTINCT unit) FROM v_fact WHERE unit LIKE '%!%%' ESCAPE '!'"
                   ).fetchone()[0] == 1,
       [r[0] for r in con.execute("SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%!%%' ESCAPE '!'")])
-check('the published spelling is still recoverable',
-      con.execute("SELECT COUNT(DISTINCT unit_source) FROM v_fact WHERE unit='triệu đồng'"
-                  ).fetchone()[0] == 7)
+check('every published spelling is still recoverable',
+      con.execute("SELECT COUNT(DISTINCT unit_source) FROM v_fact WHERE unit='VND'"
+                  ).fetchone()[0] == 14)
 
 section('concurrency (the SDK runs sync tools on worker threads)')
 _conc = []

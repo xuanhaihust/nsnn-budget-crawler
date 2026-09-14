@@ -117,10 +117,19 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   `unit_factor` now splits the string and reads the scale word, accepting a stated numeric
   multiplier (`1.000 đồng` → 1,000) and returning **None** for anything else, so an unknown
   spelling leaves `Quy đổi VND` blank instead of wrong.
-- **One spelling per unit, by allowlist — never by stripping diacritics.** 22 published ĐVT
-  spellings resolve to 9 units (4 currency, `%`, two counts, one agency name that leaked in,
-  and blank); `canon_unit` writes the canonical one and the source
-  spelling is kept (`Ghi chú` in the workbook, `v_fact.unit_source` in the warehouse). Six
+- **One currency unit: `VND`. `Giá trị chuẩn hóa` holds the VND figure, not the published
+  number.** đồng, nghìn đồng, triệu đồng and tỷ đồng are four scales of one currency, so all
+  14 published currency spellings collapse to `VND` and the value is multiplied out. Nothing
+  is lost: `Giá trị gốc` keeps the published text, `Ghi chú` keeps `ĐVT nguồn: …`, and
+  `v_fact.unit_source` returns the original spelling (`etl.py` reads it back out of `Ghi chú`,
+  because the ĐVT column no longer carries it). Safe for every real figure — 5,501 rows exceed
+  float64's exact-integer range once multiplied out and **all** of them are rows already
+  flagged implausible; the largest real provincial budget is ~1.5e14 against an exact range of
+  9.007e15. Idempotent: `unit_factor('VND')` is 1, so re-running a conversion multiplies by 1,
+  and `triệu VND` is refused outright rather than doubled.
+- **Unit spellings are matched by allowlist — never by stripping diacritics.** 22 published ĐVT
+  spellings resolve to 6 units (`VND`, `%`, two counts, one agency name that leaked in,
+  and blank); `canon_unit` writes the canonical one. Six
   currency spellings are listed literally in `parse_xml.CURRENCY`/`SCALE`, including the
   attested misspellings `Triệu dồng`, `Tiệu đồng`, `Tr đồng`, `Triệu đổng` — 660 rows that
   named đồng and never converted. Do **not** replace the allowlist with diacritic folding:
@@ -132,8 +141,10 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
 - **Fixing the unit column does NOT need a re-crawl.** ĐVT, Quy đổi VND and Ghi chú are pure
   functions of what a workbook already holds, so `pipeline/fix_units.py --apply` rewrites them
   in place with no network and no `work/`. `./nsnn` is only for when the SOURCE data changes.
-  Applied to all 34 on 2026-09-14: 2,646,767 spellings unified, 595 rows gained a conversion,
-  0 conflicts, and the 595 matches the warehouse migration exactly. Runs one process per
+  Applied to all 34 on 2026-09-14: every currency row now reads VND, 595 rows gained a
+  conversion, 0 conflicts, and the warehouse migration rescaled 1,864,198 values with the
+  total VND figure coming out bit-identical - which is the check that proves a rescale moved
+  the scale without moving a number. Runs one process per
   workbook - serially it is a five-hour job. Storage, not compute, is the constraint to watch:
   each full rewrite creates a new set of Git LFS objects for `output/`.
 - **Unit strings arrive in NFD as well as NFC.** Some sources write `ê` as `e`+U+0323 and `ồ` as

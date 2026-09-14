@@ -153,9 +153,47 @@ Final state, workbooks and warehouse agreeing row for row:
 | `dự án` | 155 | 1 |
 | `Công an tỉnh` | 6 | 1 |
 
-22 published spellings, 9 units. `./nsnn` is still only needed when the SOURCE data changes.
+22 published spellings, 9 units.
 
-## 7. Still open
+## 7. One currency, not four scales — 2026-09-14
+
+The owner's next instruction: the currency units are all VND, gather them into one. They are
+right - đồng, nghìn đồng, triệu đồng and tỷ đồng are four scales of one currency, not four
+currencies.
+
+`ĐVT` now reads `VND` on every currency row and `Giá trị chuẩn hóa` carries the VND figure.
+`Giá trị gốc` keeps the published text, `Ghi chú` keeps `ĐVT nguồn: …`, and `etl.py` reads
+that back so `v_fact.unit_source` still returns all 14 original spellings.
+
+**The objection that had to be measured first.** Multiplying out is where precision dies:
+5,501 rows exceed float64's exact-integer range once converted. Checked before committing to
+the change - **all 5,501 are rows already flagged implausible** (>1e15, where the source
+declared the wrong scale), and **zero rows of real data lose a digit**. Vietnam's largest
+provincial budget is ~1.5e14 against an exact range of 9.007e15. Had that come out the other
+way, this change would have been wrong to make.
+
+**The check that proves it moved no number.** The warehouse migration rescaled 1,864,198
+values, and the VND aggregate is bit-identical either side:
+
+```
+before  n=1,993,578  sum=8.052995e+22  min=-8.969861e+17  max=5.323818e+21
+after   n=1,993,578  sum=8.052995e+22  min=-8.969861e+17  max=5.323818e+21
+```
+
+**Idempotency**, which matters because a rescale applied twice silently squares the error:
+`unit_factor('VND')` is 1, so a second pass multiplies by 1. Verified by applying twice to
+Phú Thọ and diffing - the second pass reports 0 respelt, 0 converted, identical cells. And
+`triệu VND` returns None rather than 1e6, so a half-converted string is refused, not doubled.
+
+Workbooks and warehouse read back identical: Phú Thọ 9,515 VND rows summing 4.060410e+15 in
+both; Nghệ An 102,684 rows summing 4.092877e+17 in both.
+
+Final: **6 units** — `VND` (2,913,992 rows, 14 published spellings), blank (740,462),
+`%` (159,653, 4 spellings), `đơn vị` (159), `dự án` (155), `Công an tỉnh` (6).
+
+`./nsnn` is still only needed when the SOURCE data changes.
+
+## 8. Still open
 
 * **Storage.** The rewrite created a fresh set of Git LFS objects for `output/`. If the
   repository is near its LFS allowance, that is the constraint to watch - not compute.

@@ -77,6 +77,7 @@ CREATE INDEX ix_report_prov ON dim_report(province_id);
 """
 
 RE_YEAR = re.compile(r'(19|20)\d{2}')
+RE_UNIT_SRC = re.compile(r'ĐVT nguồn:\s*([^;]+)')
 # Indicator labels arrive with their outline marker glued on: "I Thu nội địa",
 # "2.0 Thực hiện dự án", "- Thuế GTGT", "a Dự án chuyển tiếp".
 # The marker must be FOLLOWED BY WHITESPACE, or the pattern eats real words one letter
@@ -164,13 +165,19 @@ def main():
             yr, kind = period_parts(per)
             ind = str(r['Chỉ tiêu'] or '')
             clean, depth = indicator_parts(ind)
+            # ĐVT now reads VND for every currency row, so the published spelling survives
+            # only in Ghi chú, where the parsers put it. Read it back, or a rebuild would
+            # report unit_source as 'VND' for everything and the chain to what a province
+            # actually wrote would break at this hop.
             unit = str(r['ĐVT'] or '')
+            m_src = RE_UNIT_SRC.search(str(r['Ghi chú'] or ''))
+            src_unit = m_src.group(1).strip() if m_src else unit
             val = r['Giá trị chuẩn hóa']
             batch.append((
                 pid, d_per.id(per, yr, kind), d_scope.id(str(r['Phạm vi'] or '')),
                 d_tab.id(label, m.group(1) if m else ''),
                 d_ind.id(ind, clean, depth), d_ser.id(str(r['Loại số liệu'] or '')),
-                d_unit.id(unit, unit_factor(unit) or 0, canon_unit(unit)),
+                d_unit.id(src_unit, unit_factor(unit) or 0, canon_unit(unit)),
                 int(re.search(r'report (\d+)', str(r['Ghi chú'] or '')).group(1))
                 if re.search(r'report (\d+)', str(r['Ghi chú'] or '')) else 0,
                 d_raw.id(str(r['Giá trị gốc'] or '')),
