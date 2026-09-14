@@ -52,3 +52,11 @@
   hides cell boundaries, so a greedy capture swallows every later cell. One row holding
   `"Đơn vị tính: %"`, `"Đơn vị: Triệu đồng"`, `"Đơn vị: Triệu đồng"` in three cells produced a
   unit that resolved to a currency and put a VND value on a percentage table.
+- **The declared unit is table-level; a percentage COLUMN still inherits it.** A form says
+  `Đơn vị tính: Triệu đồng` once at the top and then carries a `SO SÁNH (%)` column, so those
+  rows get `ĐVT = VND`. Harmless where the cell reads `121%` — 34,232 such rows exist and not
+  one has a VND figure, because the text does not parse as a number. Real where the column
+  prints a bare `216.87`: An Giang 2020 `66/CK-NSNN` stores that as **216,876,606 VND**. The
+  corpus-wide count is NOT knowable from the column name — `Trong đó: 90% NST` is money, and
+  some `SO SÁNH … (%)` columns hold absolute figures up to 2.976e12. Open, not fixed: blanking
+  a conversion on a guess breaks the same rule as filling one on a guess.

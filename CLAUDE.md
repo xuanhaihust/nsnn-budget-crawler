@@ -28,6 +28,7 @@ Always use `.venv/bin/python` — the system Python has neither `xlrd` nor `open
 | `pipeline/fix_units.py` | re-apply the unit rules to existing workbooks, offline |
 | `dashboard/migrate_units.py` | the same for `data/nsnn.db` |
 | `mcp_server/test_server.py` | 133 checks — run after touching `mcp_server/` |
+| `docs/make_images.py` | rebuild every README screenshot from live data |
 
 ## Layout
 
@@ -41,6 +42,7 @@ Always use `.venv/bin/python` — the system Python has neither `xlrd` nor `open
 | `dashboard/` | `index.html` over the warehouse, plus the ETL. See `dashboard/README.md`. |
 | `mcp_server/` | The warehouse as an MCP server. See `mcp_server/README.md`. |
 | `docs/` | Dated notes on substantial changes, with the numbers behind them. |
+| `docs/images/` | README screenshots. Generated — never edit one by hand, rerun the script. |
 
 `work/raw/` is the evidence trail: every row traces back to a stored file with a SHA-256.
 Do not delete it — a province is ~10–250 MB.
@@ -111,7 +113,12 @@ Hải Phòng and Huế are in `samples/`.
 
 Open and unfixed: the ~50-record CKNS server gap · 527 reports that produce no rows · 757
 values 100x from their own history, flagged not corrected · `dashboard/aggregate.py` still
-keys on the cleaned indicator and drops cells the MCP server can read.
+keys on the cleaned indicator and drops cells the MCP server can read · **the declared unit is
+table-level, so a percentage COLUMN inherits the table's currency** — harmless where the cell
+reads `121%` (34,232 such rows carry `ĐVT=VND` and not one has a VND figure) but real where it
+reads `216.87`, which becomes 216,876,606 VND. Confirmed in An Giang 2020 `66/CK-NSNN`. The
+corpus-wide count is **not known**: a `%` in the column name does not settle it, since
+`Trong đó: 90% NST` is money and some `SO SÁNH … (%)` columns hold absolute figures.
 
 ## Project memory
 
