@@ -65,8 +65,8 @@ level is parsed back out of the raw label by `warehouse.block_levels`.
 roman numeral nested under section `A`. In forms 45/CK-NSNN and 58/CK-NSNN it is a section
 letter continuing the run A…H, I, K — *and those same forms also use romans I, II, III as
 agency headings under every section*, so one block needs it read both ways. Deciding it once
-per block shipped once and made `break_down` assert "is a leaf" for 9,919 section rows in
-1,259 blocks across 20 provinces that have children. `block_levels` resolves it per row by
+per block shipped once and made `break_down` assert "is a leaf" for 6,377 section rows in
+1,137 blocks across 19 provinces that have children. `block_levels` resolves it per row by
 lookahead: from a bare `I`, reaching `II` before another bare `I` or another section letter
 means a roman run opened here.
 

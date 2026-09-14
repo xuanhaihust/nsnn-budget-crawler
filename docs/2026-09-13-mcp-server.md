@@ -164,12 +164,19 @@ Round two (16), the most important of which was **a regression in round one's ow
 > `i_is_section` decided once per block whether a bare `I` was a letter or a roman. Forms
 > 45/CK-NSNN and 58/CK-NSNN need it read both ways in the same block — they letter sections
 > A…H, I, K *and* use romans I, II, III as agency headings under each. So `break_down` began
-> flatly asserting "is a leaf" for **9,919 section rows in 1,259 blocks across 20 provinces**
+> flatly asserting "is a leaf" for **6,377 section rows in 1,137 blocks across 19 provinces**
 > that have children. Bắc Ninh 2019 section H reported none; it has six, summing to 1,347.15 tỷ.
 >
 > `block_levels` now resolves it per row by lookahead. The verifier also found the original
 > report's diagnosis was *inverted* and one of its quoted outputs *fabricated* — a fix written
 > from the report as filed would have made it worse.
+>
+> **The scale was wrong too, in this document.** It said 9,919 rows in 1,259 blocks across
+> 20 provinces. That was the review agent's figure, repeated here without being checked.
+> Running the actual old code from `da54f54` against the new one gives **6,377 rows in
+> 1,137 blocks across 19 provinces** — the defect was real and the fix is unchanged, but
+> the number was 56% too high for a day. Reproduce with
+> `git show da54f54:mcp_server/warehouse.py` and compare `i_is_section` to `block_levels`.
 
 Also in round two: the TIER WARNING named a denominator `share` does not use · `basis` fell
 through to the PLAN for unrecognised values including English `"settled"` · no tool clamped

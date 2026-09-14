@@ -164,8 +164,10 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
 - **A bare `I` is a section letter in some forms and a roman numeral in others — and both in
   the same form.** 45/CK-NSNN and 58/CK-NSNN letter their sections A…H, I, K AND use romans
   I, II, III as agency headings under every one of them. Deciding it once per block (does the
-  block contain an `H`?) shipped once and made `break_down` assert "is a leaf" for **9,919
-  section rows in 1,259 blocks across 20 provinces** that have children. `block_levels`
+  block contain an `H`?) shipped once and made `break_down` assert "is a leaf" for **6,377
+  section rows in 1,137 blocks across 19 provinces** that have children (counted by running
+  the old code from `da54f54` against the new one; an earlier figure of 9,919 came from a
+  review agent and was repeated without checking). `block_levels`
   resolves it per row by lookahead: from a bare `I`, reaching `II` before another bare `I` or
   another section letter means a roman run opened here. Never decide this per block.
 - **An unparseable outline marker is a hard stop, never a wildcard.** 19,433 distinct labels
@@ -236,7 +238,7 @@ inverted and one of its quoted outputs fabricated; fixing from the report as wri
 have made the bug worse. Run the repro, read the real output, then fix what you actually saw.
 
 **A fix is not finished until you re-run the case it was for AND its neighbours.** The fix for
-the bare-`I` levelling bug caused the worst defect of the next review round — 9,919 rows
+the bare-`I` levelling bug caused the worst defect of the next review round — 6,377 rows
 wrongly reported as childless. One green test is not evidence that a change was safe.
 
 **Every fix gets a regression test.** `mcp_server/test_server.py` has 97 checks and several
