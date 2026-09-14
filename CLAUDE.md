@@ -126,6 +126,11 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   đồng, dồng, đổng, dòng, đóng and động all fold to `dong`, and `dòng` means LINE, so folding
   turns a row count into money. `./nsnn --units` lists every spelling and what it resolves to;
   anything under NOT CONVERTED that names đồng is a new spelling to check by hand.
+- **Fixing the unit column does NOT need a re-crawl.** ĐVT, Quy đổi VND and Ghi chú are pure
+  functions of what a workbook already holds, so `pipeline/fix_units.py --apply` rewrites them
+  in place with no network and no `work/`. `./nsnn` is only for when the SOURCE data changes.
+  Storage is the real constraint, not compute: rewriting all 34 workbooks creates 250 MB of
+  new Git LFS objects against a 1 GB free tier that already holds three full sets.
 - **Unit strings arrive in NFD as well as NFC.** Some sources write `ê` as `e`+U+0323 and `ồ` as
   `ô`+U+0300. The string looks identical but never equals an NFC literal, so `"Triệu đồng"` from
   Hưng Yên (1,520 rows) and Lạng Sơn matched nothing and lost its conversion. `clean_unit`

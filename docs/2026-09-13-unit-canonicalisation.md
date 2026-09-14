@@ -114,7 +114,7 @@ widths all survive the round-trip.
 
 `output/*.xlsx` were generated on 2026-09-12 and **still carry the old spellings**, with
 `Quy đổi VND` blank on those 595 rows. The warehouse has been migrated; the workbooks have
-not, because regenerating them needs `work/` and therefore a re-crawl.
+not, for the storage reason below rather than any technical one.
 
 So until `pipeline/fix_units.py --apply` is run:
 
@@ -129,7 +129,8 @@ anyone can bring their own checkout up to date deterministically, at no storage 
 
 ## 7. Still open
 
-* **The workbooks need a re-run** to match the warehouse (§5).
+* **The workbooks are one `fix_units.py --apply` behind the warehouse** (§6). Not run here
+  because of the 250 MB LFS cost; the decision is the owner's.
 * **`Công an tỉnh` in the unit column.** Six rows. A stricter `looks_like_unit` in
   `parse_xlsx.py` would reject an agency name outright, rather than letting it through with
   factor 0.
