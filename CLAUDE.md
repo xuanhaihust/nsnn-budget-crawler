@@ -247,6 +247,28 @@ exist only because that line broke once. Run it after touching anything under `m
 published. Deciding what the source meant is the owner's call, not the code's. This is the
 same rule as "never infer a value", applied one layer out.
 
+**A script's success message is not evidence.** A commit once described a `CLAUDE.md` change
+that never landed: the patch script printed `docs updated`, then hit an AssertionError on the
+next block, and the commit ran anyway because it was a separate command. `print("done")` proves
+only that the print ran. Re-read the file, or grep for the string you claim you added, before
+saying it is there - and check the exit status before committing.
+
+**Test a constraint before declaring it.** "The workbooks can only be fixed by re-running
+`./nsnn`, which re-downloads several GB" was stated as fact and was simply false - all three
+affected columns are pure functions of the workbook's own contents, and `pipeline/fix_units.py`
+does it offline in minutes. It was never tested, only inferred from "`work/` is absent". A
+claim that something is impossible or expensive is exactly the kind that stops the owner asking
+for it, so it needs more evidence than a claim that something works, not less.
+
+**Say which claims are verified and which are inferred.** The corrosive thing is not being
+wrong, it is being wrong in the same confident register as being right, so the owner cannot
+tell which sentences to trust. Mark the difference in the sentence itself: measured, or
+assumed-and-not-checked.
+
+**Lead with the answer.** "Is it done?" got buried under caveats twice. State done or not done
+in the first line, then the detail. A list of open items that mixes real unfinished work with
+documented data limitations reads as evasion even when every line is true.
+
 **Report your own errors plainly, including shipped ones.** If something you already told the
 owner turns out wrong, say so first and unprompted, before the rest of the update. Two rounds
 of review is not a proof of correctness; say that too rather than implying the work is
