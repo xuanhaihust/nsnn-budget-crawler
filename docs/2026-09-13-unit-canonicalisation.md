@@ -1,207 +1,121 @@
-# 2026-09-13 — one spelling per unit
+# 2026-09-13/14 — one currency unit
 
-The owner asked for the unit column to be audited and made consistent. It now is: 22 published
-spellings resolve to 4 currency units plus the things that correctly are not currency, and the
-660 rows that named đồng without ever converting now convert.
+The unit column was audited and unified. 22 published ĐVT spellings now resolve to **6 units**,
+and the four currency scales collapse to a single one: **VND**.
 
-This closes the item `docs/2026-09-12-unit-correctness-audit.md` §"Still open" left for the
-owner to decide: *"Whether an obvious misspelling should be normalised is the project owner's
-call."* The call was made.
+This closes what `docs/2026-09-12-unit-correctness-audit.md` left for the owner to decide —
+*"whether an obvious misspelling should be normalised is the project owner's call."*
+
+| unit | rows | published spellings behind it |
+|---|---:|---:|
+| `VND` | 2,913,992 | 14 |
+| *(blank)* | 740,462 | 1 |
+| `%` | 159,653 | 4 |
+| `đơn vị` | 159 | 1 |
+| `dự án` | 155 | 1 |
+| `Công an tỉnh` | 6 | 1 |
+
+`Công an tỉnh` is an agency name that reached the unit column — residue of the `Đơn vị:` bug.
+Six rows, none with a value. Left alone, because it is not a unit and guessing what it meant
+is not this code's job.
 
 ---
 
-## 1. What was actually in the data
+## What changed in the data
 
-Counted across all 34 workbooks in `output/` — not the warehouse, because the workbook is what
-is handed over. `./nsnn --units` reproduces this at any time.
+**660 rows gained a conversion.** Four spellings named đồng and never converted —
+`Triệu dồng` (347), `Tiệu đồng` (166), `Tr đồng` (122), `Triệu đổng` (25) — of which 595 carry
+a figure.
 
-| ĐVT as published | rows | factor before | factor after | reported as |
-|---|---:|---:|---:|---|
-| `Triệu đồng` | 2,621,055 | 1e6 | 1e6 | `triệu đồng` |
-| `triệu đồng` | 156,434 | 1e6 | 1e6 | `triệu đồng` |
-| `1.000.000 đồng` | 401 | 1e6 | 1e6 | `triệu đồng` |
-| **`Triệu dồng`** | **347** | **none** | **1e6** | `triệu đồng` |
-| **`Tiệu đồng`** | **166** | **none** | **1e6** | `triệu đồng` |
-| **`Tr đồng`** | **122** | **none** | **1e6** | `triệu đồng` |
-| **`Triệu đổng`** | **25** | **none** | **1e6** | `triệu đồng` |
-| `đồng` / `Đồng` | 131,472 | 1 | 1 | `đồng` |
-| `tỷ đồng` / `Tỷ đồng` | 3,172 | 1e9 | 1e9 | `tỷ đồng` |
-| `Nghìn đồng` / `1.000 đồng` / `1000 đồng` | 798 | 1e3 | 1e3 | `nghìn đồng` |
-| `%`, `% (phần trăm)`, `Phần trăm (%)`, `%(phần trăm)` | 159,653 | none | none | unchanged |
-| `đơn vị`, `dự án` | 314 | none | none | unchanged |
-| `Công an tỉnh` | 6 | none | none | unchanged |
-| *(blank)* | 740,462 | none | none | unchanged |
+**Every currency row now reads `VND`**, and `Giá trị chuẩn hóa` carries the VND figure rather
+than the published number. đồng, nghìn đồng, triệu đồng and tỷ đồng are four scales of one
+currency, not four currencies.
 
-The four bold rows are the whole substantive change: **660 rows**, of which **595 carry a
-figure** and had no `Quy đổi VND`. Everything else is spelling only.
+Nothing about what a province wrote is lost:
 
-`Công an tỉnh` is an agency name that reached the unit column — the residue of the
-`Đơn vị:` bug recorded in CLAUDE.md. Six rows, none with a value. Left alone.
+| column | holds |
+|---|---|
+| `Giá trị gốc` | the published text, e.g. `6193000` |
+| `Giá trị chuẩn hóa` | the VND figure, e.g. `6193000000000` |
+| `ĐVT` | `VND` |
+| `Ghi chú` | `ĐVT nguồn: Triệu đồng` |
 
-## 2. The rule
+`etl.py` reads `ĐVT nguồn` back out of `Ghi chú`, so `v_fact.unit_source` still returns all 14
+original spellings. Without that a rebuild would read every ĐVT as `VND` and the last link back
+to the published spelling would break at that hop.
 
-Two functions in `pipeline/parse_xml.py`:
+## The two design decisions
 
-* `unit_factor(u)` — unchanged in shape. The last word must be a listed spelling of đồng and
-  the word before it decides the scale. It gained three scale spellings (`tiệu`, `tr` beside
-  `triệu`) and two currency spellings (`dồng`, `đổng` beside `đồng`).
-* `canon_unit(u)` — new. A recognised currency returns its canonical spelling; anything else
-  is returned cleaned but untouched, because rewriting a string we could not classify would be
-  a guess.
-
-**Recognition is an explicit allowlist, never a fuzzy match.** That is the one design decision
-worth keeping. Stripping diacritics is the obvious way to catch `dồng` and `đổng`, and it also
-collapses these onto the same string:
+**Recognition is an explicit allowlist, never a fuzzy match.** Stripping diacritics is the
+obvious way to catch `dồng` and `đổng`, and it also collapses these onto one string:
 
 ```
 đồng  dồng  đổng  dòng  đóng  dọng  động   ->  all fold to "dong"
 ```
 
-`dòng` means **line/row**. A unit column reading `dòng` is a row count, and folding would
-convert it to money at factor 1. Since the corpus contains exactly three spellings of the
-currency word, they are listed literally and everything else gets no conversion — which is
-what `never infer a value when the unit is unclear` requires. The five collision cases are in
-the test suite.
+`dòng` means **line**. A unit column reading `dòng` is a row count, and folding would price it
+at 1 VND. The corpus contains exactly three spellings of the currency word, so they are listed
+literally in `parse_xml.CURRENCY` and everything else gets no conversion. Percentages work the
+same way via `PERCENT`: a string merely containing `%` is not enough, because `% so với dự
+toán` and `tỷ lệ %` name comparison columns, not units. The collision cases are in the tests.
 
-## 3. Where the change lands
+**Idempotency**, because a rescale applied twice squares the error. `unit_factor('VND')` is 1,
+so a second pass multiplies by 1; `triệu VND` returns None rather than 1e6, so a half-converted
+string is refused rather than doubled. Verified by applying twice to Phú Thọ and diffing — the
+second pass reports 0 respelt, 0 converted, identical cells.
 
-| | |
-|---|---|
-| `pipeline/parse_xml.py` | `CURRENCY`, expanded `SCALE`, new `canon_unit` |
-| `pipeline/parse_xml.py`, `parse_xlsx.py` | `ĐVT` is written canonical; the published spelling goes to `Ghi chú` as `ĐVT nguồn: …` whenever it differs |
-| `pipeline/run.py` | `./nsnn --units`, a standing audit over `output/` |
-| `dashboard/etl.py` | `dim_unit.canon`; `v_fact.unit` is canonical and `v_fact.unit_source` keeps the published spelling |
-| `dashboard/migrate_units.py` | applies the same rules to an existing `data/nsnn.db` without a re-crawl |
-| `mcp_server/` | tool text updated; 19 new checks |
+## The check that had to come first
 
-## 4. Migration rather than rebuild
+Multiplying out to VND is where precision dies. Measured **before** committing to the change:
 
-The warehouse is built from `work/`, several GB of cached downloads absent from a fresh
-checkout, so a rebuild was not available. `dim_unit.factor` is a pure function of the label, so
-`dashboard/migrate_units.py` recomputes exactly what `etl.py` would now produce and touches
-nothing else. It refuses to run if any *existing* factor would change — that would be
-restating published figures, not cleaning up spelling.
+* 5,501 rows exceed float64's exact-integer range once converted.
+* **All 5,501 are rows already flagged implausible** (>1e15), where the source declared the
+  wrong scale.
+* **Zero rows of real data lose a digit.** Vietnam's largest provincial budget is ~1.5e14
+  against an exact range of 9.007e15.
 
-```
-rows with a VND value : 1,992,983 -> 1,993,578  (+595)
-fact rows             : 3,814,427 -> 3,814,427  (unchanged)
-```
+Had that come out the other way, this change would have been wrong to make.
 
-Verified afterwards through `v_fact`: 7 published spellings now report as `triệu đồng`, 3 as
-`nghìn đồng`, 2 each as `đồng` and `tỷ đồng`, and `unit_source` still returns every original.
+## The check that proves no number moved
 
-## 5. The workbooks do not need a re-crawl
-
-An earlier draft of this note said the workbooks could only be brought in line by re-running
-`./nsnn`, which would re-download several GB because `work/` is absent. **That was wrong**, and
-it conflated "rebuild through the pipeline" with "fix the unit column".
-
-All three affected columns are pure functions of what the workbook already holds:
-
-    ĐVT         -> canon_unit(ĐVT)
-    Quy đổi VND -> Giá trị chuẩn hóa x unit_factor(ĐVT)
-    Ghi chú     -> "; ĐVT nguồn: <as published>" when the spelling changed
-
-`pipeline/fix_units.py` does exactly that, in place, with no network and no `work/`. It refuses
-to save a workbook where a row already carries a *different* VND figure, because restating a
-published conversion is not a cleanup. Measured on Phú Thọ: 14,380 rows, 10,675 spellings
-unified, 347 conversions added, and the three sheets, freeze panes, bold header and column
-widths all survive the round-trip.
-
-`./nsnn` is only needed when the SOURCE data changes.
-
-## 6. Applied to the workbooks too
-
-Run over all 34 on 2026-09-14:
-
-```
-3,814,427 rows across 34 workbooks
-2,646,767 unit spellings unified
-      595 rows gained a Quy đổi VND
-        0 conflicts
-```
-
-The 595 matches the warehouse migration exactly, which is the check that matters: two
-independent paths - a SQL migration over `dim_unit` and an openpyxl rewrite of the workbooks -
-arrived at the same number from the same rules.
-
-Verified afterwards by reading two workbooks directly rather than trusting the tool's own log:
-Phú Thọ now holds only `triệu đồng` and blanks, Đồng Tháp only `triệu đồng`, `đồng`,
-`tỷ đồng`, `%` and blanks, and **neither has a single row that carries a currency unit and a
-number but no conversion**. All 34 files still open as valid xlsx.
-
-Serially this took about five hours; `fix_units.py` now runs one process per workbook, because
-openpyxl spends nearly all its time parsing and re-serialising XML and that is CPU-bound.
-
-A second pass on 2026-09-14 did the same for percentages, which the first audit had left in
-four spellings — `%`, `% (phần trăm)`, `Phần trăm (%)`, `%(phần trăm)`. 3,186 rows respelt,
-which is exactly 2,741 + 280 + 165, and 0 conversions, as it must be: percentages carry no VND.
-Read back from the workbooks directly, Đồng Tháp, Ninh Bình and Bắc Ninh now hold `%` and
-nothing else.
-
-Final state, workbooks and warehouse agreeing row for row:
-
-| unit | rows | published spellings behind it |
-|---|---:|---:|
-| `triệu đồng` | 2,778,550 | 7 |
-| *(blank)* | 740,462 | 1 |
-| `%` | 159,653 | 4 |
-| `đồng` | 131,472 | 2 |
-| `tỷ đồng` | 3,172 | 2 |
-| `nghìn đồng` | 798 | 3 |
-| `đơn vị` | 159 | 1 |
-| `dự án` | 155 | 1 |
-| `Công an tỉnh` | 6 | 1 |
-
-22 published spellings, 9 units.
-
-## 7. One currency, not four scales — 2026-09-14
-
-The owner's next instruction: the currency units are all VND, gather them into one. They are
-right - đồng, nghìn đồng, triệu đồng and tỷ đồng are four scales of one currency, not four
-currencies.
-
-`ĐVT` now reads `VND` on every currency row and `Giá trị chuẩn hóa` carries the VND figure.
-`Giá trị gốc` keeps the published text, `Ghi chú` keeps `ĐVT nguồn: …`, and `etl.py` reads
-that back so `v_fact.unit_source` still returns all 14 original spellings.
-
-**The objection that had to be measured first.** Multiplying out is where precision dies:
-5,501 rows exceed float64's exact-integer range once converted. Checked before committing to
-the change - **all 5,501 are rows already flagged implausible** (>1e15, where the source
-declared the wrong scale), and **zero rows of real data lose a digit**. Vietnam's largest
-provincial budget is ~1.5e14 against an exact range of 9.007e15. Had that come out the other
-way, this change would have been wrong to make.
-
-**The check that proves it moved no number.** The warehouse migration rescaled 1,864,198
-values, and the VND aggregate is bit-identical either side:
+The warehouse migration rescaled 1,864,198 values. The VND aggregate is bit-identical either
+side:
 
 ```
 before  n=1,993,578  sum=8.052995e+22  min=-8.969861e+17  max=5.323818e+21
 after   n=1,993,578  sum=8.052995e+22  min=-8.969861e+17  max=5.323818e+21
 ```
 
-**Idempotency**, which matters because a rescale applied twice silently squares the error:
-`unit_factor('VND')` is 1, so a second pass multiplies by 1. Verified by applying twice to
-Phú Thọ and diffing - the second pass reports 0 respelt, 0 converted, identical cells. And
-`triệu VND` returns None rather than 1e6, so a half-converted string is refused, not doubled.
+Workbooks and warehouse read back identical too: Phú Thọ 9,515 VND rows summing 4.060410e+15
+in both, Nghệ An 102,684 rows summing 4.092877e+17 in both.
 
-Workbooks and warehouse read back identical: Phú Thọ 9,515 VND rows summing 4.060410e+15 in
-both; Nghệ An 102,684 rows summing 4.092877e+17 in both.
+## Where it lands
 
-Final: **6 units** — `VND` (2,913,992 rows, 14 published spellings), blank (740,462),
-`%` (159,653, 4 spellings), `đơn vị` (159), `dự án` (155), `Công an tỉnh` (6).
+| | |
+|---|---|
+| `pipeline/parse_xml.py` | `CURRENCY`, `PERCENT`, `SCALE`, `CANON`, `canon_unit` |
+| `pipeline/parse_xlsx.py` | same rules on the spreadsheet path |
+| `pipeline/run.py` | `./nsnn --units` — a standing audit over `output/` |
+| `pipeline/fix_units.py` | rewrites existing workbooks in place, offline, one process each |
+| `dashboard/etl.py` | `dim_unit.canon`; recovers `ĐVT nguồn` from `Ghi chú` |
+| `dashboard/migrate_units.py` | the same rules against an existing `data/nsnn.db` |
+| `mcp_server/` | tool text updated; the unit checks are in `test_server.py` |
 
-`./nsnn` is still only needed when the SOURCE data changes.
+**No re-crawl is needed for any of it.** ĐVT, Giá trị chuẩn hóa, Quy đổi VND and Ghi chú are
+pure functions of what a workbook already holds. `./nsnn` is only for when the SOURCE data
+changes. Serially the full rewrite is a five-hour job; one process per workbook brings it to
+minutes, because openpyxl is CPU-bound on XML.
 
-## 8. Still open
+Both migration tools refuse to run where an *existing* conversion would change — that would be
+restating a published figure, not tidying a spelling.
 
-* **Storage.** The rewrite created a fresh set of Git LFS objects for `output/`. If the
-  repository is near its LFS allowance, that is the constraint to watch - not compute.
-* **`Công an tỉnh` in the unit column.** Six rows. A stricter `looks_like_unit` in
-  `parse_xlsx.py` would reject an agency name outright, rather than letting it through with
-  factor 0.
-* **`đơn vị` and `dự án` are real units of count**, not currency and not percentages. Nothing
-  reads them as a quantity today; if counts ever matter they need their own handling.
-* **Unknown spellings will keep arriving.** That is why `./nsnn --units` exists. Anything it
-  lists under NOT CONVERTED that names đồng is a new spelling to add to `CURRENCY` or `SCALE`
-  after looking at the source — not before.
+## Still open
+
+* **Storage.** Each full rewrite of `output/` creates a new set of Git LFS objects (~250 MB).
+* **`Công an tỉnh` in the unit column.** A stricter `looks_like_unit` in `parse_xlsx.py` would
+  reject an agency name outright rather than letting it through with no factor.
+* **`đơn vị` and `dự án` are units of count.** Nothing reads them as a quantity today; if
+  counts ever matter they need their own handling.
+* **Unknown spellings will keep arriving.** That is what `./nsnn --units` is for. Anything it
+  lists under NOT CONVERTED that names đồng is a new spelling to check by hand — after looking
+  at the source, not before.

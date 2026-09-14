@@ -33,35 +33,20 @@ published parent into its direct children and print the residual.
 
 ## 2. Three premises that turned out to be false
 
-Checked against the corpus before any code was written on top of them.
+Each was one query away from being disproved, and each would have been load-bearing. The rules
+they produced now live in `.claude/memory/gotchas-analysis.md`; the measurements are here.
 
-**`dim_indicator.depth` is not the outline level.** It counts markers the ETL stripped, and
-every label carries exactly one, so 3.32M of 3.8M rows are `depth=1`. In B63 the section head
-`A TỔNG THU CÂN ĐỐI NSNN`, the roman `I Thu nội địa`, the arabic `6 Thuế bảo vệ môi trường`
-and the leaf `- Thuế BVMT thu từ hàng hóa nhập khẩu` are all depth 1. Filtering on it to get
-"top-level items" returns the whole form.
+* **`dim_indicator.depth` is not the outline level** — 3.32M of 3.8M rows are `depth=1`, so a
+  depth filter returns the whole form.
+* **Keying a cell on the cleaned label merges different lines.** Ambiguous cells keyed on
+  `clean` vs on `indicator_raw`: B46 0/0 · B49 152/0 · B50 337/0 · B63 0/0 · B64 675/0 ·
+  B65 1,555/0. `1.1 Chi giáo dục` is the investment line, `1 Chi giáo dục` the recurrent one —
+  6.1x apart in Bắc Ninh 2017.
+* **`mode=ro` is not a sandbox** — on a read-only connection `ATTACH` still created a writable
+  database and `VACUUM INTO` still wrote a full 352 MB copy.
 
-**Keying a cell on the cleaned label merges different lines.** The outline marker is part of
-the identity:
-
-| form | ambiguous keyed on `clean` | keyed on `indicator_raw` |
-|---|---:|---:|
-| B46 | 0 | 0 |
-| B49 | 152 | 0 |
-| B50 | 337 | 0 |
-| B63 | 0 | 0 |
-| B64 | 675 | 0 |
-| B65 | 1,555 | 0 |
-
-`1.1 Chi giáo dục` is the investment education line under `I Chi đầu tư phát triển`;
-`1 Chi giáo dục` is the recurrent one under `II Chi thường xuyên`. They differ by 6.1x in
-Bắc Ninh 2017. **`dashboard/aggregate.py` keys on `clean`** and drops those cells, which is
-why its comments call B65 unusable for sector figures — on the raw key it is usable, and the
-289 B50 keys it reports dropping are recoverable. The dashboard was not changed; this is
-recorded as a known improvement.
-
-**`mode=ro` is not a sandbox.** On a read-only connection, `ATTACH` still created a new
-writable database and `VACUUM INTO` still wrote a full 352 MB copy of the warehouse.
+`dashboard/aggregate.py` still keys on `clean`, so the dashboard drops cells the MCP server
+reads. Unchanged here, recorded as a known improvement.
 
 ## 3. How a breakdown is scoped
 
