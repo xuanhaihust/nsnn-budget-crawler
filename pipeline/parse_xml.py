@@ -80,6 +80,14 @@ def unit_factor(u):
     return None
 
 
+# Percentages arrive written four ways. None of them converts, so unifying them changes no
+# figure - but leaving them split means a query that groups by unit still sees one unit as
+# four. Only forms that unambiguously mean "percent" are listed; a string merely containing a
+# % sign is not enough, because "% so với dự toán" names a comparison, not a unit.
+PERCENT = {'%', '% (phần trăm)', '%(phần trăm)', 'phần trăm (%)', 'phần trăm', '(%)',
+           '% (phan tram)', 'percent', '%.'}
+
+
 def canon_unit(u):
     """One spelling per unit, so the ĐVT column is consistent across all 34 provinces.
 
@@ -90,7 +98,9 @@ def canon_unit(u):
     """
     u = clean_unit(u)
     f = unit_factor(u)
-    return CANON.get(f, u) if f is not None else u
+    if f is not None:
+        return CANON[f]
+    return '%' if u.lower() in PERCENT else u
 
 
 NUM = re.compile(r'^-?[\d., ]+$')

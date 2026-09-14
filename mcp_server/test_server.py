@@ -283,6 +283,14 @@ check('the warehouse reports one spelling per currency unit',
           "SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%đồng%'")) ==
       ['nghìn đồng', 'triệu đồng', 'tỷ đồng', 'đồng'],
       [r[0] for r in con.execute("SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%đồng%'")])
+for spelling in ('%', '% (phần trăm)', 'Phần trăm (%)', '%(phần trăm)'):
+    check(f'{spelling!r} reports as %', _pu.canon_unit(spelling) == '%', _pu.canon_unit(spelling))
+for spelling in ('% so với dự toán', 'tỷ lệ %', 'đơn vị', 'dự án'):
+    check(f'{spelling!r} is left alone', _pu.canon_unit(spelling) == spelling)
+check('the warehouse reports one spelling for percent',
+      con.execute("SELECT COUNT(DISTINCT unit) FROM v_fact WHERE unit LIKE '%!%%' ESCAPE '!'"
+                  ).fetchone()[0] == 1,
+      [r[0] for r in con.execute("SELECT DISTINCT unit FROM v_fact WHERE unit LIKE '%!%%' ESCAPE '!'")])
 check('the published spelling is still recoverable',
       con.execute("SELECT COUNT(DISTINCT unit_source) FROM v_fact WHERE unit='triệu đồng'"
                   ).fetchone()[0] == 7)
