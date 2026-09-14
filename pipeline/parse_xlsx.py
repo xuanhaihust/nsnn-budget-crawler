@@ -6,7 +6,7 @@ def _tolerant(b, errors='strict', final=True):
     try: return _u16(b, errors, final)
     except UnicodeDecodeError: return _u16(b, 'replace', final)
 codecs.utf_16_le_decode = _tolerant
-from parse_xml import norm_num, unit_factor, clean_unit
+from parse_xml import norm_num, unit_factor, clean_unit, canon_unit
 
 N = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
 
@@ -155,8 +155,10 @@ def rows_from(path, rec, province):
             parts.append(row)
         header = [' / '.join(dict.fromkeys(x for x in col if x)).strip()
                   for col in zip(*parts)] if parts else []
-        unit = clean_unit(unit)
-        factor = unit_factor(unit)
+        src_unit = clean_unit(unit)
+        unit = canon_unit(src_unit)        # every currency scale becomes VND
+        factor = unit_factor(src_unit)     # the factor of what was PUBLISHED, not of 'VND'
+        unit_note = f"; ĐVT nguồn: {src_unit}" if src_unit != unit else ''
         for r in grid[data_i:]:
             if len(r) < 2: continue
             stt, label = (r[0] or '').strip(), (r[1] or '').strip()
@@ -169,8 +171,10 @@ def rows_from(path, rec, province):
                     std = vnd = ''
                 else:
                     n = norm_num(raw)
-                    std = '' if n is None else n
-                    vnd = n * factor if (n is not None and factor) else ''
+                    # Giá trị chuẩn hóa carries the VND figure (see parse_xml); Giá trị
+                    # gốc keeps the published text and Ghi chú the published scale.
+                    std = '' if n is None else (n * factor if factor else n)
+                    vnd = std if (n is not None and factor) else ''
                 if raw == '' : continue          # spreadsheets are sparse: skip empty cells
                 yield {
                     'Tỉnh/TP hiện hành': province,
@@ -188,5 +192,6 @@ def rows_from(path, rec, province):
                     'ĐVT': unit,
                     'Quy đổi VND': vnd,
                     'Nguồn': src,
-                    'Ghi chú': f"{rec.get('ReportCircular_Name','')}; XLSX TT343; report {rec.get('ID')}",
+                    'Ghi chú': f"{rec.get('ReportCircular_Name','')}; XLSX TT343; "
+                               f"report {rec.get('ID')}{unit_note}",
                 }

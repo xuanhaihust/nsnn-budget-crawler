@@ -176,6 +176,10 @@ PENDING_NO_FILE 27.
 
 ## Still open
 
+> **CLOSED 2026-09-13.** The owner decided: these are now normalised by an explicit
+> allowlist, and the count was 660 rather than 635 (the earlier filter missed `Triệu đổng`,
+> whose `ổng` the pattern did not match). See `docs/2026-09-13-unit-canonicalisation.md`.
+
 1. **635 rows carry a misspelled currency unit** — `Triệu dồng` (347), `Tiệu đồng` (166),
    `Tr đồng` (122), `Triệu đổng` (25) — and are left without a VND conversion. A human reads
    them instantly, but repairing them is guessing, and `never infer a value when the unit is

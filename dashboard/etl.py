@@ -15,7 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'pipeline'))
 import build as pbuild                                    # noqa: E402
 import harvest, run as prun                               # noqa: E402
-from parse_xml import unit_factor                         # noqa: E402
+from parse_xml import canon_unit, unit_factor             # noqa: E402
 
 # work/<slug>/ is ASCII-folded, so the directory name is not a province name:
 # work/Ho_Chi_Minh is "TP Hồ Chí Minh". provinces34.txt holds the current official
@@ -33,7 +33,8 @@ CREATE TABLE dim_scope    (id INTEGER PRIMARY KEY, label TEXT UNIQUE);
 CREATE TABLE dim_table    (id INTEGER PRIMARY KEY, label TEXT UNIQUE, form_code TEXT);
 CREATE TABLE dim_indicator(id INTEGER PRIMARY KEY, label TEXT UNIQUE, clean TEXT, depth INTEGER);
 CREATE TABLE dim_series   (id INTEGER PRIMARY KEY, label TEXT UNIQUE);
-CREATE TABLE dim_unit     (id INTEGER PRIMARY KEY, label TEXT UNIQUE, factor INTEGER);
+CREATE TABLE dim_unit     (id INTEGER PRIMARY KEY, label TEXT UNIQUE, factor INTEGER,
+                           canon TEXT);
 CREATE TABLE dim_raw      (id INTEGER PRIMARY KEY, label TEXT UNIQUE);
 CREATE TABLE dim_report   (id INTEGER PRIMARY KEY, report_id INTEGER, province_id INTEGER,
                            title TEXT, doc_no TEXT, doc_date TEXT, method TEXT,
@@ -52,7 +53,8 @@ CREATE VIEW v_fact AS
 SELECT f.rowid AS id, p.name AS province, pe.label AS period, pe.year, pe.kind,
        s.label AS scope, t.label AS table_label, t.form_code,
        i.label AS indicator_raw, i.clean AS indicator, i.depth,
-       se.label AS series, u.label AS unit, rw.label AS raw, f.value,
+       se.label AS series, u.canon AS unit, u.label AS unit_source,
+       rw.label AS raw, f.value,
        CASE WHEN u.factor > 0 AND f.value IS NOT NULL THEN f.value * u.factor END AS vnd,
        f.report_id
 FROM fact_row f
@@ -75,6 +77,7 @@ CREATE INDEX ix_report_prov ON dim_report(province_id);
 """
 
 RE_YEAR = re.compile(r'(19|20)\d{2}')
+RE_UNIT_SRC = re.compile(r'ĐVT nguồn:\s*([^;]+)')
 # Indicator labels arrive with their outline marker glued on: "I Thu nội địa",
 # "2.0 Thực hiện dự án", "- Thuế GTGT", "a Dự án chuyển tiếp".
 # The marker must be FOLLOWED BY WHITESPACE, or the pattern eats real words one letter
@@ -137,7 +140,7 @@ def main():
     d_tab = Dim(cur, 'dim_table', ('form_code',))
     d_ind = Dim(cur, 'dim_indicator', ('clean', 'depth'))
     d_ser = Dim(cur, 'dim_series')
-    d_unit = Dim(cur, 'dim_unit', ('factor',))
+    d_unit = Dim(cur, 'dim_unit', ('factor', 'canon'))
     d_raw = Dim(cur, 'dim_raw')
 
     rep_pk = 0
@@ -162,13 +165,19 @@ def main():
             yr, kind = period_parts(per)
             ind = str(r['Chỉ tiêu'] or '')
             clean, depth = indicator_parts(ind)
+            # ĐVT now reads VND for every currency row, so the published spelling survives
+            # only in Ghi chú, where the parsers put it. Read it back, or a rebuild would
+            # report unit_source as 'VND' for everything and the chain to what a province
+            # actually wrote would break at this hop.
             unit = str(r['ĐVT'] or '')
+            m_src = RE_UNIT_SRC.search(str(r['Ghi chú'] or ''))
+            src_unit = m_src.group(1).strip() if m_src else unit
             val = r['Giá trị chuẩn hóa']
             batch.append((
                 pid, d_per.id(per, yr, kind), d_scope.id(str(r['Phạm vi'] or '')),
                 d_tab.id(label, m.group(1) if m else ''),
                 d_ind.id(ind, clean, depth), d_ser.id(str(r['Loại số liệu'] or '')),
-                d_unit.id(unit, unit_factor(unit) or 0),
+                d_unit.id(src_unit, unit_factor(unit) or 0, canon_unit(unit)),
                 int(re.search(r'report (\d+)', str(r['Ghi chú'] or '')).group(1))
                 if re.search(r'report (\d+)', str(r['Ghi chú'] or '')) else 0,
                 d_raw.id(str(r['Giá trị gốc'] or '')),

@@ -6,6 +6,7 @@
     ./nsnn --with-pdf "Hà Nội"      also store PDF/DOC (never parsed; for a future OCR pass)
     ./nsnn --list                   every CKNS department name and id
     ./nsnn --status                 what is already built
+    ./nsnn --units                  every ĐVT spelling in output/, and which convert
 
 Provinces run in separate processes. Each writes only to its own work/<slug>/ and its own
 output file, so batches never collide. Downloads inside one province use 16 threads.
@@ -119,6 +120,60 @@ def status():
         print(f"\nremaining {len(missing)}: " + ', '.join(missing))
 
 
+def units():
+    """Every distinct ĐVT spelling across output/, with the factor each resolves to.
+
+    A standing check, not a one-off cleanup. Unit spellings are the most reliably recurring
+    defect in this corpus - a misspelling silently costs those rows their Quy đổi VND, and it
+    has happened three separate times. Anything listed as NOT CONVERTED that looks like money
+    belongs in parse_xml.CURRENCY or SCALE; everything else on that list is correctly left
+    alone (percentages, counts, and the odd agency name).
+
+    Reads the workbooks rather than the warehouse, because the workbook is what is handed over.
+    """
+    import collections
+    from openpyxl import load_workbook
+    from parse_xml import unit_factor, canon_unit, CURRENCY
+
+    seen, files = collections.Counter(), sorted(OUT.glob('*_budget_CKNS_*.xlsx'))
+    if not files:
+        print('no workbooks in output/ - run ./nsnn first')
+        return
+    for n, f in enumerate(files, 1):
+        wb = load_workbook(f, read_only=True, data_only=True)
+        ws = wb['Data']
+        col = first = None
+        for i, row in enumerate(ws.iter_rows(min_row=1, max_row=8, values_only=True), 1):
+            if row and 'ĐVT' in row:      # rows 1-2 are a title banner, not the header
+                col, first = row.index('ĐVT'), i + 1
+                break
+        if col is None:
+            print(f"  !! {f.name}: no ĐVT column, skipped")
+            wb.close()
+            continue
+        for row in ws.iter_rows(min_row=first, values_only=True):
+            v = row[col] if col < len(row) else None
+            seen[v.strip() if isinstance(v, str) else ''] += 1
+        wb.close()
+        print(f"  [{n}/{len(files)}] {f.name}", flush=True)
+
+    print(f"\n{len(seen)} distinct ĐVT spellings across {len(files)} workbooks\n")
+    conv = [(u, c) for u, c in seen.items() if unit_factor(u) is not None]
+    rest = [(u, c) for u, c in seen.items() if unit_factor(u) is None]
+    print(f"{'ĐVT':<24} {'factor':>14} {'rows':>10}  canonical")
+    print('-' * 68)
+    for u, c in sorted(conv, key=lambda x: -x[1]):
+        flag = '' if canon_unit(u) == u else f"  <- written as {canon_unit(u)!r}"
+        print(f"{u!r:<24} {unit_factor(u):>14,} {c:>10,}{flag}")
+    print(f"\nNOT CONVERTED (Quy đổi VND stays blank, by design):")
+    for u, c in sorted(rest, key=lambda x: -x[1]):
+        print(f"  {u!r:<24} {c:>10,}")
+    bad = [u for u, _ in rest if u and any(w in u.lower() for w in CURRENCY)]
+    if bad:
+        print(f"\n!! {len(bad)} of those name đồng but do not convert - add the spelling to "
+              f"parse_xml.CURRENCY/SCALE: {bad}")
+
+
 def main(argv):
     args, jobs, names = argv[:], JOBS, []
     with_pdf = '--with-pdf' in args
@@ -132,6 +187,8 @@ def main(argv):
         return 0
     if '--status' in args:
         status(); return 0
+    if '--units' in args:
+        units(); return 0
     names = [a for a in args if a != '--all']
     if not names:                       # no province given means every province
         names = provinces34()
