@@ -23,7 +23,8 @@ Two rules this must not break, and it checks both before saving:
   factor would give a different one, the file is left alone and the row is reported - that
   would be changing a published number, not tidying a spelling.
 """
-import pathlib, sys
+import os, pathlib, sys
+from concurrent.futures import ProcessPoolExecutor
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from openpyxl import load_workbook                              # noqa: E402
@@ -87,6 +88,17 @@ def fix_sheet(ws, apply):
     return seen, renamed, gained, conflicts
 
 
+def _one(job):
+    """Process one workbook in its own process. Returns a picklable summary."""
+    f, apply = job
+    wb = load_workbook(f)
+    rows, ren, gain, conflicts = fix_sheet(wb['Data'], apply)
+    if apply and not conflicts and (ren or gain):
+        wb.save(f)
+    wb.close()
+    return f.name, rows, ren, gain, [(f.name, *c) for c in conflicts]
+
+
 def main():
     apply = '--apply' in sys.argv
     if not apply and '--check' not in sys.argv:
@@ -101,17 +113,18 @@ def main():
 
     tot_rows = tot_ren = tot_gain = 0
     all_conflicts = []
-    for n, f in enumerate(files, 1):
-        wb = load_workbook(f)
-        rows, ren, gain, conflicts = fix_sheet(wb['Data'], apply)
-        tot_rows += rows; tot_ren += ren; tot_gain += gain
-        all_conflicts += [(f.name, *c) for c in conflicts]
-        if apply and not conflicts and (ren or gain):
-            wb.save(f)
-        wb.close()
-        print(f"  [{n}/{len(files)}] {f.name:<46} {rows:>8,} rows  "
-              f"{ren:>7,} respelt  {gain:>5,} converted"
-              + ('  !! CONFLICT, not saved' if conflicts else ''), flush=True)
+    # One process per workbook, because openpyxl spends nearly all of its time parsing and
+    # re-serialising XML and that is CPU-bound. Serially this is a ~5 hour job on the full set.
+    workers = max(1, min(len(files), (os.cpu_count() or 2)))
+    done = 0
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        for name, rows, ren, gain, conflicts in ex.map(_one, [(f, apply) for f in files]):
+            tot_rows += rows; tot_ren += ren; tot_gain += gain
+            all_conflicts += conflicts
+            done += 1
+            print(f"  [{done}/{len(files)}] {name:<46} {rows:>8,} rows  "
+                  f"{ren:>7,} respelt  {gain:>5,} converted"
+                  + ('  !! CONFLICT, not saved' if conflicts else ''), flush=True)
 
     print(f"\n{tot_rows:,} rows across {len(files)} workbooks")
     print(f"{tot_ren:,} unit spellings unified")

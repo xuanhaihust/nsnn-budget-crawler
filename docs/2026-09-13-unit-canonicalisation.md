@@ -110,27 +110,36 @@ widths all survive the round-trip.
 
 `./nsnn` is only needed when the SOURCE data changes.
 
-## 6. Known divergence — read this before comparing outputs
+## 6. Applied to the workbooks too
 
-`output/*.xlsx` were generated on 2026-09-12 and **still carry the old spellings**, with
-`Quy đổi VND` blank on those 595 rows. The warehouse has been migrated; the workbooks have
-not, for the storage reason below rather than any technical one.
+Run over all 34 on 2026-09-14:
 
-So until `pipeline/fix_units.py --apply` is run:
+```
+3,814,427 rows across 34 workbooks
+2,646,767 unit spellings unified
+      595 rows gained a Quy đổi VND
+        0 conflicts
+```
 
-* the warehouse and the MCP server report `triệu đồng` and a converted value,
-* the workbook for the same row reports `Tr đồng` and a blank conversion.
+The 595 matches the warehouse migration exactly, which is the check that matters: two
+independent paths - a SQL migration over `dim_unit` and an openpyxl rewrite of the workbooks -
+arrived at the same number from the same rules.
 
-Neither is wrong. `fix_units.py --apply` reconciles them in minutes without touching the
-network - but it rewrites all 34 files, which is **250 MB of fresh Git LFS objects**. Three
-full sets have already been pushed against a 1 GB free tier, so committing a fourth is likely
-to exceed the quota. That is why the fix ships as a tool rather than as a committed rewrite:
-anyone can bring their own checkout up to date deterministically, at no storage cost.
+Verified afterwards by reading two workbooks directly rather than trusting the tool's own log:
+Phú Thọ now holds only `triệu đồng` and blanks, Đồng Tháp only `triệu đồng`, `đồng`,
+`tỷ đồng`, `%` and blanks, and **neither has a single row that carries a currency unit and a
+number but no conversion**. All 34 files still open as valid xlsx.
+
+Serially this took about five hours; `fix_units.py` now runs one process per workbook, because
+openpyxl spends nearly all its time parsing and re-serialising XML and that is CPU-bound.
+
+The workbooks and the warehouse are now in step. `./nsnn` is still only needed when the SOURCE
+data changes.
 
 ## 7. Still open
 
-* **The workbooks are one `fix_units.py --apply` behind the warehouse** (§6). Not run here
-  because of the 250 MB LFS cost; the decision is the owner's.
+* **Storage.** The rewrite created a fresh set of Git LFS objects for `output/`. If the
+  repository is near its LFS allowance, that is the constraint to watch - not compute.
 * **`Công an tỉnh` in the unit column.** Six rows. A stricter `looks_like_unit` in
   `parse_xlsx.py` would reject an agency name outright, rather than letting it through with
   factor 0.
