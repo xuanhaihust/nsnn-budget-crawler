@@ -9,7 +9,18 @@ META = ('title','type','year','periodType','code','circular','department',
 # and "dòng" means LINE. Reading a row count as a currency is exactly the kind of guess the
 # data rules forbid, so an unlisted spelling gets no conversion and shows up in `./nsnn
 # --units` instead. All three below are attested in the crawled corpus.
-CURRENCY = {'đồng', 'dồng', 'đổng'}
+CURRENCY = {'đồng', 'dồng', 'đổng', 'vnd'}
+
+# The single unit every currency figure is normalised to. The four published scales - đồng,
+# nghìn, triệu, tỷ - are not four currencies, they are four scales of this one, so `Giá trị
+# chuẩn hóa` carries the VND figure and `ĐVT` says VND. The published scale is not lost: `Giá
+# trị gốc` keeps the source text and `Ghi chú` records "ĐVT nguồn".
+#
+# Measured before doing this: 5,501 rows exceed float64's exact-integer range once multiplied
+# out, and ALL 5,501 are rows already flagged implausible (>1e15) because the source declared
+# the wrong scale. Zero rows of real data lose a digit - Vietnam's largest provincial budget is
+# ~1.5e14 VND against an exact range of 9.007e15.
+VND = 'VND'
 
 # Scale words, including the abbreviations and misspellings actually observed. Every entry is
 # either standard Vietnamese or attested in the corpus; nothing here is invented.
@@ -21,8 +32,7 @@ POW10 = {1, 1_000, 1_000_000, 1_000_000_000}
 
 # One spelling per factor, so the ĐVT column reads the same everywhere. The source spelling is
 # never lost: when it differs, build.py keeps it in Ghi chú.
-CANON = {1: 'đồng', 1_000: 'nghìn đồng',
-         1_000_000: 'triệu đồng', 1_000_000_000: 'tỷ đồng'}
+CANON = {1: VND, 1_000: VND, 1_000_000: VND, 1_000_000_000: VND}
 
 
 def clean_unit(u):
@@ -69,6 +79,8 @@ def unit_factor(u):
     words = u.split()
     if not words or words[-1] not in CURRENCY:
         return None
+    if words[-1] == 'vnd':          # already normalised; a scale word before it would be wrong
+        return 1 if len(words) == 1 else None
     if len(words) == 1:
         return 1
     scale = words[-2]
@@ -134,8 +146,8 @@ def rows_from(path, rec, province):
     if content is None: return
 
     src_unit = clean_unit(g('curencyunit') or (rec.get('CurrencyUnit') or ''))
-    unit = canon_unit(src_unit)            # one spelling per unit across all 34 provinces
-    factor = unit_factor(unit)
+    unit = canon_unit(src_unit)            # every currency scale becomes VND
+    factor = unit_factor(src_unit)         # the factor of what was PUBLISHED, not of 'VND'
     unit_note = f"; ĐVT nguồn: {src_unit}" if src_unit != unit else ''
     src = next((a['Url'] for a in rec.get('Attachments') or []
                 if a['FileName'].lower().endswith('.xml')), '')
@@ -154,8 +166,11 @@ def rows_from(path, rec, province):
                 std, vnd = '', ''
             else:
                 n = norm_num(raw)
-                std = '' if n is None else n
-                vnd = n * factor if (n is not None and factor) else ''
+                # Giá trị chuẩn hóa carries the VND figure, because ĐVT now says VND.
+                # Giá trị gốc keeps the published text and Ghi chú the published scale, so
+                # nothing about what the province actually wrote is lost.
+                std = '' if n is None else (n * factor if factor else n)
+                vnd = std if (n is not None and factor) else ''
             yield {
                 'Tỉnh/TP hiện hành': province,
                 'Tỉnh/TP theo nguồn': g('department') or rec.get('Deparment_Name',''),

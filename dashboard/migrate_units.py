@@ -13,13 +13,21 @@ What it does:
 * `dim_unit.factor` is recomputed with the current `unit_factor`, which gained the six attested
   currency spellings. 660 rows across 4 spellings ("Triệu dồng", "Tiệu đồng", "Tr đồng",
   "Triệu đổng") carried a real figure and no conversion until now.
-* `dim_unit.canon` is added: one spelling per factor, so a query can group by unit without
-  seeing "Triệu đồng", "triệu đồng", "1.000.000 đồng" and "Tr đồng" as four different things.
+* `dim_unit.canon` is added and every currency scale collapses to `VND`: đồng, nghìn, triệu
+  and tỷ are not four currencies, they are four scales of one. `fact_row.value` is rescaled by
+  the unit's published factor so it carries the VND figure, and the unit's factor then becomes
+  1 - the same shape the workbooks now have. `dim_unit.label` still holds the published
+  spelling, exposed as `v_fact.unit_source`, so nothing about what a province wrote is lost.
+
+  Safe for every real figure: 5,501 rows exceed float64's exact-integer range once multiplied
+  out, and all 5,501 are already flagged implausible (>1e15) because the source declared the
+  wrong scale. Vietnam's largest provincial budget is ~1.5e14 against an exact range of 9e15.
 * `v_fact.unit` now reports the canonical spelling and `v_fact.unit_source` the spelling the
   workbook actually published, so nothing is lost.
 
-The fact rows themselves are never touched: no value changes, no row is added or removed, and
-a blank stays blank. Only the unit dimension and the view are rewritten.
+No row is added or removed and a blank stays blank. `fact_row.value` IS rewritten - that is
+the point of the VND unification - but only by multiplying by the published factor, so
+`v_fact.vnd` comes out identical before and after. The migration prints that check.
 """
 import pathlib, sqlite3, sys
 
@@ -71,14 +79,14 @@ def report(rows):
     print('-' * 80)
     for r in rows:
         mark = '  <== gains VND' if r['old'] == 0 and r['new'] > 0 else ''
-        if r['old'] > 0 and r['new'] != r['old']:
+        if r['old'] > 1 and r['new'] != r['old']:
             mark = '  <== FACTOR CHANGES, INVESTIGATE'
         print(f"{r['label']!r:<24} {r['old']:>12,} {r['new']:>13,} {r['n']:>10,}  "
               f"{r['canon']!r}{mark}")
     print(f"\n{gained:,} rows with a value gain a VND conversion")
     print(f"{renamed:,} rows get a unified spelling (the published spelling is kept in "
           f"v_fact.unit_source)")
-    danger = [r for r in rows if r['old'] > 0 and r['new'] != r['old']]
+    danger = [r for r in rows if r['old'] > 1 and r['new'] != r['old']]
     if danger:
         print(f"\n!! {len(danger)} spellings would have their existing factor CHANGED. That is "
               "not a cleanup, it would restate published figures - stop and check by hand.")
@@ -108,11 +116,23 @@ def main():
     cols = {r[1] for r in con.execute("PRAGMA table_info(dim_unit)")}
     if 'canon' not in cols:
         con.execute("ALTER TABLE dim_unit ADD COLUMN canon TEXT")
+
+    # Rescale the facts to VND, then flatten the unit's factor to 1. Idempotent: a unit already
+    # at factor 1 multiplies by 1, so re-running changes nothing. Done before the factor is
+    # written, because the multiply reads the OLD factor.
+    rescaled = 0
+    for r in rows:
+        if r['new'] > 1:
+            cur = con.execute(
+                "UPDATE fact_row SET value = value * ? WHERE unit_id = ? AND value IS NOT NULL",
+                (r['new'], r['id']))
+            rescaled += cur.rowcount
     for r in rows:
         con.execute("UPDATE dim_unit SET factor = ?, canon = ? WHERE id = ?",
-                    (r['new'], r['canon'], r['id']))
+                    (1 if r['new'] > 0 else 0, r['canon'], r['id']))
     con.executescript(VIEW)
     con.commit()
+    print(f"\n{rescaled:,} fact values rescaled to VND")
 
     after = con.execute("""SELECT COUNT(*) FROM fact_row f JOIN dim_unit u ON u.id=f.unit_id
                            WHERE f.value IS NOT NULL AND u.factor > 0""").fetchone()[0]

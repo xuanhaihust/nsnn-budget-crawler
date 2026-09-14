@@ -62,6 +62,8 @@ def fix_sheet(ws, apply):
         std = ws.cell(r, s_i + 1).value if s_i is not None else None
         old_vnd = ws.cell(r, v_i + 1).value if v_i is not None else None
 
+        # A workbook already converted to VND must not be multiplied a second time. The source
+        # unit is the authority: if it already says VND the factor is 1 and nothing rescales.
         want = None
         if factor and isinstance(std, (int, float)):
             want = std * factor                       # blank stays blank: std must be a number
@@ -81,10 +83,14 @@ def fix_sheet(ws, apply):
                     if 'ĐVT nguồn:' not in str(note):
                         ws.cell(r, g_i + 1).value = f"{note}; ĐVT nguồn: {src}" if note \
                             else f"ĐVT nguồn: {src}"
-        if want is not None and not isinstance(old_vnd, (int, float)):
-            gained += 1
-            if apply and v_i is not None:
-                ws.cell(r, v_i + 1).value = want
+        if want is not None:
+            if not isinstance(old_vnd, (int, float)):
+                gained += 1
+            if apply:
+                if v_i is not None:
+                    ws.cell(r, v_i + 1).value = want
+                if s_i is not None and std != want:
+                    ws.cell(r, s_i + 1).value = want   # Giá trị chuẩn hóa is now the VND figure
     return seen, renamed, gained, conflicts
 
 

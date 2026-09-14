@@ -156,8 +156,8 @@ def rows_from(path, rec, province):
         header = [' / '.join(dict.fromkeys(x for x in col if x)).strip()
                   for col in zip(*parts)] if parts else []
         src_unit = clean_unit(unit)
-        unit = canon_unit(src_unit)        # one spelling per unit across all 34 provinces
-        factor = unit_factor(unit)
+        unit = canon_unit(src_unit)        # every currency scale becomes VND
+        factor = unit_factor(src_unit)     # the factor of what was PUBLISHED, not of 'VND'
         unit_note = f"; ĐVT nguồn: {src_unit}" if src_unit != unit else ''
         for r in grid[data_i:]:
             if len(r) < 2: continue
@@ -171,8 +171,10 @@ def rows_from(path, rec, province):
                     std = vnd = ''
                 else:
                     n = norm_num(raw)
-                    std = '' if n is None else n
-                    vnd = n * factor if (n is not None and factor) else ''
+                    # Giá trị chuẩn hóa carries the VND figure (see parse_xml); Giá trị
+                    # gốc keeps the published text and Ghi chú the published scale.
+                    std = '' if n is None else (n * factor if factor else n)
+                    vnd = std if (n is not None and factor) else ''
                 if raw == '' : continue          # spreadsheets are sparse: skip empty cells
                 yield {
                     'Tỉnh/TP hiện hành': province,
