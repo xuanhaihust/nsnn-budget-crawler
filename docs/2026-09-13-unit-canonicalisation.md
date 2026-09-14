@@ -133,8 +133,27 @@ number but no conversion**. All 34 files still open as valid xlsx.
 Serially this took about five hours; `fix_units.py` now runs one process per workbook, because
 openpyxl spends nearly all its time parsing and re-serialising XML and that is CPU-bound.
 
-The workbooks and the warehouse are now in step. `./nsnn` is still only needed when the SOURCE
-data changes.
+A second pass on 2026-09-14 did the same for percentages, which the first audit had left in
+four spellings — `%`, `% (phần trăm)`, `Phần trăm (%)`, `%(phần trăm)`. 3,186 rows respelt,
+which is exactly 2,741 + 280 + 165, and 0 conversions, as it must be: percentages carry no VND.
+Read back from the workbooks directly, Đồng Tháp, Ninh Bình and Bắc Ninh now hold `%` and
+nothing else.
+
+Final state, workbooks and warehouse agreeing row for row:
+
+| unit | rows | published spellings behind it |
+|---|---:|---:|
+| `triệu đồng` | 2,778,550 | 7 |
+| *(blank)* | 740,462 | 1 |
+| `%` | 159,653 | 4 |
+| `đồng` | 131,472 | 2 |
+| `tỷ đồng` | 3,172 | 2 |
+| `nghìn đồng` | 798 | 3 |
+| `đơn vị` | 159 | 1 |
+| `dự án` | 155 | 1 |
+| `Công an tỉnh` | 6 | 1 |
+
+22 published spellings, 9 units. `./nsnn` is still only needed when the SOURCE data changes.
 
 ## 7. Still open
 

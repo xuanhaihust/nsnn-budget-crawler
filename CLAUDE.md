@@ -118,14 +118,17 @@ liệu · Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Ch�
   multiplier (`1.000 đồng` → 1,000) and returning **None** for anything else, so an unknown
   spelling leaves `Quy đổi VND` blank instead of wrong.
 - **One spelling per unit, by allowlist — never by stripping diacritics.** 22 published ĐVT
-  spellings resolve to 4 currency units; `canon_unit` writes the canonical one and the source
+  spellings resolve to 9 units (4 currency, `%`, two counts, one agency name that leaked in,
+  and blank); `canon_unit` writes the canonical one and the source
   spelling is kept (`Ghi chú` in the workbook, `v_fact.unit_source` in the warehouse). Six
   currency spellings are listed literally in `parse_xml.CURRENCY`/`SCALE`, including the
   attested misspellings `Triệu dồng`, `Tiệu đồng`, `Tr đồng`, `Triệu đổng` — 660 rows that
   named đồng and never converted. Do **not** replace the allowlist with diacritic folding:
   đồng, dồng, đổng, dòng, đóng and động all fold to `dong`, and `dòng` means LINE, so folding
   turns a row count into money. `./nsnn --units` lists every spelling and what it resolves to;
-  anything under NOT CONVERTED that names đồng is a new spelling to check by hand.
+  anything under NOT CONVERTED that names đồng is a new spelling to check by hand. Percentages
+  are canonicalised the same way, via `PERCENT`; a string merely containing `%` is not enough,
+  because `% so với dự toán` and `tỷ lệ %` name comparison columns, not units.
 - **Fixing the unit column does NOT need a re-crawl.** ĐVT, Quy đổi VND and Ghi chú are pure
   functions of what a workbook already holds, so `pipeline/fix_units.py --apply` rewrites them
   in place with no network and no `work/`. `./nsnn` is only for when the SOURCE data changes.
