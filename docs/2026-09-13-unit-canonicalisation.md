@@ -90,21 +90,44 @@ fact rows             : 3,814,427 -> 3,814,427  (unchanged)
 Verified afterwards through `v_fact`: 7 published spellings now report as `triệu đồng`, 3 as
 `nghìn đồng`, 2 each as `đồng` and `tỷ đồng`, and `unit_source` still returns every original.
 
-## 5. Known divergence — read this before comparing outputs
+## 5. The workbooks do not need a re-crawl
+
+An earlier draft of this note said the workbooks could only be brought in line by re-running
+`./nsnn`, which would re-download several GB because `work/` is absent. **That was wrong**, and
+it conflated "rebuild through the pipeline" with "fix the unit column".
+
+All three affected columns are pure functions of what the workbook already holds:
+
+    ĐVT         -> canon_unit(ĐVT)
+    Quy đổi VND -> Giá trị chuẩn hóa x unit_factor(ĐVT)
+    Ghi chú     -> "; ĐVT nguồn: <as published>" when the spelling changed
+
+`pipeline/fix_units.py` does exactly that, in place, with no network and no `work/`. It refuses
+to save a workbook where a row already carries a *different* VND figure, because restating a
+published conversion is not a cleanup. Measured on Phú Thọ: 14,380 rows, 10,675 spellings
+unified, 347 conversions added, and the three sheets, freeze panes, bold header and column
+widths all survive the round-trip.
+
+`./nsnn` is only needed when the SOURCE data changes.
+
+## 6. Known divergence — read this before comparing outputs
 
 `output/*.xlsx` were generated on 2026-09-12 and **still carry the old spellings**, with
 `Quy đổi VND` blank on those 595 rows. The warehouse has been migrated; the workbooks have
 not, because regenerating them needs `work/` and therefore a re-crawl.
 
-So until `./nsnn` is run again:
+So until `pipeline/fix_units.py --apply` is run:
 
 * the warehouse and the MCP server report `triệu đồng` and a converted value,
 * the workbook for the same row reports `Tr đồng` and a blank conversion.
 
-Neither is wrong; they are one crawl apart. A re-run reconciles them and costs 1–3 minutes per
-province, less on a warm `work/`.
+Neither is wrong. `fix_units.py --apply` reconciles them in minutes without touching the
+network - but it rewrites all 34 files, which is **250 MB of fresh Git LFS objects**. Three
+full sets have already been pushed against a 1 GB free tier, so committing a fourth is likely
+to exceed the quota. That is why the fix ships as a tool rather than as a committed rewrite:
+anyone can bring their own checkout up to date deterministically, at no storage cost.
 
-## 6. Still open
+## 7. Still open
 
 * **The workbooks need a re-run** to match the warehouse (§5).
 * **`Công an tỉnh` in the unit column.** Six rows. A stricter `looks_like_unit` in
