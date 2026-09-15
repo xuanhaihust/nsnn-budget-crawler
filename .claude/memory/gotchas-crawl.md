@@ -16,9 +16,24 @@
   provinces about 5.6% of reports publish nothing but PDF/DOC (0% in Tây Ninh, 16% in Lào Cai).
 - **Page size above ~50 breaks paging.** `PageSize=200` silently returns 28 rows and then
   empty pages. `PAGE = 50` in `ckns.py`.
-- **Every query stops ~50 records short of the server's own `TotalItems`.** Hà Nội returns 178
-  of a claimed 228. This is a server limit, not a bug in the code. Closing it needs a
-  full-catalog harvest instead of per-province queries. **Still open.**
+- **The "~50 records short" gap was paging, not a server limit — `PageIndex=0` returns
+  everything.** This was documented here for months as "a server limit, not a bug in the code"
+  and listed in `CLAUDE.md` as open and unfixable. It was never tested; it was inferred from
+  the paged walk running out early. One parameter closes it. Measured on Cà Mau
+  (TotalItems=414): `PageIndex=1 PageSize=50` → 50 per page and the walk ends at ~364;
+  `PageIndex=1 PageSize=200` → 200 then page 2 returns 0; `PageIndex=1 PageSize=2000` → 0;
+  **`PageIndex=0 PageSize=2000` → 414**, and `PageSize=5000` also 414, so the ceiling is
+  TotalItems and not PageSize.
+  What it cost: the paged walk had **8,130 of 10,360** reports across the 34 provinces —
+  **2,230 missing** — and the shortfall lands on the newest data, **1,195 of the 1,661**
+  reports for period years 2024–2026. That is why the warehouse looked like it had nothing
+  recent: 0 reports for 2026 and 19 for 2025, while CKNS publishes 154 and 1,026.
+  `catalog()` now calls `PageIndex=0` first and falls back to the paged walk if it comes back
+  short. **Re-running `./nsnn` is what actually ingests the missing reports — the fix to the
+  client does not backfill the warehouse by itself.**
+  This is the working agreement's "test a constraint before declaring it" rule, paid for a
+  second time: a claim that something is impossible stops the owner asking for it, so it needs
+  more evidence than a claim that something works, not less.
 - **`Year` + `DeparmentId` together return nothing.** Filter by department only.
 - **Attachment URLs contain raw spaces** and must be percent-encoded, or every fetch fails.
 - **Files named `.xls` are often xlsx zips.** Sniff the magic bytes; do not trust the extension.

@@ -119,7 +119,7 @@ All 34 provinces built and committed under `output/`: 3,814,427 rows, 0 failed r
 `Pending_Review` entries. `./nsnn --status` for the live list. Manual, portal-sourced files for
 Hải Phòng and Huế are in `samples/`.
 
-Open and unfixed: the ~50-record CKNS server gap · 527 reports that produce no rows · 757
+Open and unfixed: **2,230 of 10,360 CKNS reports are not in the warehouse** — the paging bug is fixed in `ckns.py` but a re-crawl is needed to ingest them, and the shortfall is worst on recent data (1,195 of 1,661 reports for 2024–2026 missing; 0 for 2026) · 527 reports that produce no rows · 757
 values 100x from their own history, flagged not corrected · `dashboard/aggregate.py` still
 keys on the cleaned indicator and drops cells the MCP server can read · **the declared unit is
 table-level, so a percentage COLUMN inherits the table's currency** — harmless where the cell
