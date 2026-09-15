@@ -70,3 +70,13 @@ instruction about a specific deliverable.
 
 **Report numbers honestly**, including failed reports and the open 50-record gap. If a rule in
 this file would have to be broken to make output look better, stop and say so instead.
+
+**Everything published carries the owner's name, not the tool's.** Commits, pull requests, the
+lot. No `Co-Authored-By: Claude`, no `Claude-Session:` trailer, no "Generated with Claude Code"
+footer — not in a commit message, not in a PR body. Set
+`git config user.name xuanhaihust` and `user.email 52320861+xuanhaihust@users.noreply.github.com`
+at the start of a session and check `git log -1 --format='%an <%ae>'` before the first commit.
+This cost a cleanup of 12 PR bodies and left 25 commits on `main` still attributed to the
+GitHub account `@claude`, which is public on the repo's Contributors list and can only be
+undone by rewriting history. `CLAUDE.md` and `.claude/` stay as they are: those are the
+project's own config, not a byline.
