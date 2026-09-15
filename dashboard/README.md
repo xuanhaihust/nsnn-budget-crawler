@@ -5,6 +5,14 @@ A single self-contained page over the 3,814,427 rows the crawler produced.
 Open `index.html` — no server, no build step, no network. Everything it needs, including
 the numbers, is inside that one file.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../docs/images/dashboard-hero-dark.png">
+  <img alt="The top of index.html: title, the five headline counts, and the first chart" src="../docs/images/dashboard-hero.png">
+</picture>
+
+The page follows the reader's theme; the screenshots below are the light one. Every figure on
+it is computed from `data/nsnn.db` at build time — nothing on the page is estimated.
+
 ## Why it is built this way
 
 The 34 workbooks are the deliverable but they are a terrible analysis surface: 250 MB of
@@ -95,6 +103,32 @@ is unknown and the conversion was deliberately left blank.
 | 10 | Trend | B46 | Median province revenue 12.0 → 18.6 nghìn tỷ, 2018–2024 |
 | 11–14 | Coverage, volume, machine-readability, units | — | Disclosure and data quality |
 
+Chart 1 — each province's revenue split into what it raises itself and what the centre sends.
+Two published cells of one form, so there is nothing to double count:
+
+![Self-sufficiency: Bắc Ninh 98% at the top, Lạng Sơn 15% at the bottom](../docs/images/dashboard-self.png)
+
+Chart 3 — the five largest revenue sources per province, everything else as `khác`:
+
+![Where revenue comes from, per province](../docs/images/dashboard-rev.png)
+
+Chart 5 — recurrent spending by sector, and the legend that says one province was held back:
+
+![Recurrent spending by sector, education 26% and health 24% at the median](../docs/images/dashboard-sect.png)
+
+Chart 7 — plan against outturn, both read from the same B63 report, so no cross-form join:
+
+![Plan vs outturn: revenue beats plan in 86% of province-years](../docs/images/dashboard-pa.png)
+
+Chart 10 — the median province rather than a national sum, with the reporting count printed
+under each year, which is the reason for using a median at all:
+
+![Median province revenue 12.0 to 18.6 nghìn tỷ, 2018 to 2024, with n under each year](../docs/images/dashboard-trend.png)
+
+Chart 11 — who published what, and from which year:
+
+![A coverage grid of 34 provinces against years](../docs/images/dashboard-heat.png)
+
 ### The rule every one of these follows
 
 Each figure is **a named cell of one named form**, and the derived numbers are ratios of two
@@ -110,7 +144,8 @@ Two consequences are enforced in code rather than trusted:
 - **A province missing one charted component is excluded from that chart**, not drawn with a
   zero slice. Tây Ninh publishes 661.8 tỷ of education spending but its cell is ambiguous;
   drawn naively it became a province that spends nothing on schools. The legend says how many
-  provinces were held back.
+  provinces were held back — visible under chart 5 above as *1 tỉnh không hiển thị vì thiếu ít
+  nhất một lĩnh vực*.
 
 ### Why B46 and nothing wider
 

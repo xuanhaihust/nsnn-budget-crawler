@@ -111,6 +111,22 @@ restating a published figure, not tidying a spelling.
 
 ## Still open
 
+* **The declared unit is table-level, so a percentage column inherits the table's currency.**
+  Found on 2026-09-14 while building the README screenshots, which is exactly why a screenshot
+  of real output is worth having. A form declares *"Đơn vị tính: Triệu đồng"* once at the top
+  and then contains a `SO SÁNH (%)` column; every row of that column gets `ĐVT = VND`.
+
+  Mostly harmless: **34,232 rows whose published text contains `%` carry `ĐVT = VND`, and not
+  one of them has a VND figure** — `121%` does not parse as a number, so nothing is converted.
+  Real where the column prints a bare number: An Giang 2020, `66/CK-NSNN`,
+  `SO SÁNH (%) / TỔNG SỐ / CHI THƯỜNG XUYÊN`, source cell `216.87660624369599`, stored as
+  **216,876,606 VND**. That is a percentage priced as money.
+
+  **The corpus-wide count is not known and is not guessable from the column name.**
+  `Trong đó: 90% NST` contains a `%` and is money; `SO SÁNH ƯỚC THỰC HIỆN VỚI (%)` has values
+  up to 2.976e12 in some reports, so that column is not always a percentage either. Counting
+  it needs a per-form reading. Nothing has been changed: blanking a conversion on a guess is
+  the same mistake as filling one on a guess.
 * **Storage.** Each full rewrite of `output/` creates a new set of Git LFS objects (~250 MB).
 * **`Công an tỉnh` in the unit column.** A stricter `looks_like_unit` in `parse_xlsx.py` would
   reject an agency name outright rather than letting it through with no factor.

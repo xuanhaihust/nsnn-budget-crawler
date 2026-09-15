@@ -29,3 +29,17 @@
   cells and joining levels with ` / `.
 - CKNS name aliases: the Source Master says `Huế` and `TP Hồ Chí Minh`; CKNS says
   `Thừa Thiên Huế` and `Hồ Chí Minh`. Handled by `ALIAS` in `run.py`.
+
+## Screenshots for the READMEs
+
+- **`docs/make_images.py` regenerates every image under `docs/images/`** from live data, so a
+  README image is a reproducible claim rather than a stale one. Rerun it after anything that
+  changes tool output or the dashboard. Two traps, each of which took several wrong fixes
+  before the real cause showed up.
+  **DejaVu Sans Mono has no glyph for `ế`, `ồ`, `ữ`** — it is the default `monospace` in
+  headless Chromium and renders them as base letter + spacing accent, so `Thuế` comes out
+  `Thuê´` and `tỷ đồng` as `tỷ đôǹg`. It reads as data corruption and is not one. Liberation
+  Mono covers Vietnamese and is embedded base64, because a `file://` page will not fetch a
+  `file://` font. And **`<pre>` does not inherit the body font**: the UA stylesheet's
+  `pre{font-family:monospace}` beats inheritance, so the face must be named on the `pre` rule
+  itself — otherwise the font loads, reports `loaded`, and is never used.

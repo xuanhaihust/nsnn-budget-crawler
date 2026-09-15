@@ -14,6 +14,12 @@ provinces' budget disclosures without being handed 3.8 million rows and a hope.
 The repo ships a `.mcp.json`, so in Claude Code the stdio server is already wired up: open the
 project and the `nsnn_*` tools are there.
 
+![nsnn_break_down splits a published parent into its direct children and prints the residual](../docs/images/mcp-break-down.png)
+
+Every screenshot on this page is the tool's real output, captured by calling the function in
+`tools.py` and rendering the text unedited. Reproduce any of them with the call shown on the
+first line.
+
 ---
 
 ## Why this is not just "SQL over a database"
@@ -116,6 +122,18 @@ comment calls B65 unusable for sector figures. On the raw key B65 is fully usabl
 | `nsnn_trace_source` | The untouched source cell behind one number. |
 | `nsnn_run_sql` | Escape hatch: one guarded read-only SELECT. |
 
+`nsnn_read_balance_sheet` is the one form where ranking provinces is sound — and it still shows
+its own defects rather than hiding them. Đồng Nai comes back `MAGNITUDE?` with its two ratios
+printed as `?`: that cell's own published history spans 1,411,139x (2018 `0.026`, 2020
+`29106.05`, 2021 `0.029`, 2022 `23556.345` tỷ đồng), so no year of it can be trusted as a
+denominator. The row is still shown, and the figures are exactly as published:
+
+![nsnn_read_balance_sheet for 2022, with Đồng Nai flagged MAGNITUDE? and its ratios left blank](../docs/images/mcp-balance-sheet.png)
+
+One named cell across the years, then the untouched source cell behind one of those numbers:
+
+![nsnn_read_timeseries and nsnn_trace_source](../docs/images/mcp-timeseries-trace.png)
+
 ## Search
 
 An agent will never guess one of 153,272 verbatim Vietnamese labels, so search is the entry
@@ -133,6 +151,11 @@ too, because `đ` is U+0111, a distinct letter with no canonical decomposition, 
 Results are ranked by **how many provinces publish the label**, never by bm25. 93.3% of
 distinct labels are one-province project lines and bm25 rewards short documents, so for
 `chi giáo dục` it puts a 1-province/31-row label above the 34-province/9,748-row national one.
+
+![nsnn_find_indicators answering an unaccented query with the exact labels, marker and all](../docs/images/mcp-find-indicators.png)
+
+The two hits differ by one character of outline marker and are different budget lines — which
+is why the footer tells the agent to copy the label verbatim.
 
 ## The SQL escape hatch
 
@@ -177,6 +200,8 @@ the decimal mark, so a formatted `146,068` invites a 1000x misreading against th
 
 ## What it refuses to do
 
+![a tool naming the four candidate series instead of picking one, and the SQL guard refusing ATTACH while a plain SELECT runs](../docs/images/mcp-refusals.png)
+
 The project's data rules are enforced at the serialization layer, not just in the parser:
 
 - **A blank is never a zero.** 1,036,789 rows have no value — 694,405 from an empty source
@@ -192,6 +217,9 @@ The project's data rules are enforced at the serialization layer, not just in th
   `MAGNITUDE?` and left exactly as published; `nsnn_list_data_quality(block='magnitude')`
   shows the whole series, because in Đồng Nai's case more years are affected than not, so even
   that cell's own median is one of the bad values.
+
+  ![nsnn_list_data_quality listing eight headline cells whose own history spans 100x or more](../docs/images/mcp-data-quality.png)
+
 - **Province names resolve, or fail with the full list.** Folding and a small alias table
   handle `Hanoi`, `TPHCM`, `thua thien hue`. There is deliberately **no** fuzzy did-you-mean:
   difflib answers `Bac Giang` with `An Giang` and `Ha Nam` with `Hà Nội`, confidently and

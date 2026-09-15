@@ -61,6 +61,10 @@ Tên tỉnh phải bỏ trong dấu ngoặc kép `" "` và viết có dấu.
 Nếu lỡ tắt giữa chừng thì chạy lại lệnh cũ. Phần đã tải xong không tải lại,
 nên lần sau rất nhanh.
 
+Gõ `./nsnn --status` để xem đã xong tới đâu:
+
+![Màn hình ./nsnn --status liệt kê 34/34 tỉnh đã có file Excel](docs/images/nsnn-status.png)
+
 ---
 
 ## File kết quả có gì
@@ -76,6 +80,16 @@ Mỗi file Excel có 3 sheet:
 16 cột: Tỉnh/TP hiện hành · Tỉnh/TP theo nguồn · Số QĐ/Văn bản · Ngày tài liệu ·
 Kỳ dữ liệu · Cơ quan · Phạm vi · Nội dung/Bảng · Chỉ tiêu · Loại số liệu ·
 Giá trị gốc · Giá trị chuẩn hóa · ĐVT · Quy đổi VND · Nguồn · Ghi chú.
+
+Sheet `Data` trông như thế này — đây là số liệu thật của Nghệ An, biểu B63 năm 2020:
+
+![Một lát cắt sheet Data: chỉ tiêu, loại số liệu, giá trị gốc, giá trị chuẩn hóa, ĐVT, quy đổi VND và ghi chú](docs/images/workbook-data-sheet.png)
+
+Để ý các dòng `SO SÁNH (%)`: giá trị gốc là `121%`, `75%`, nên cột `Quy đổi VND` **để trống** —
+không biết chắc là tiền thì không quy đổi.
+
+Cột `ĐVT` ở những dòng đó vẫn ghi `VND`, vì đơn vị được khai ở **đầu bảng** chứ không khai
+riêng cho từng cột. Đây là một điểm chưa đúng đã biết, xem mục *Hạn chế đã biết* ở cuối.
 
 **Về cột `ĐVT` và `Giá trị chuẩn hóa`.** Các tỉnh viết đơn vị rất khác nhau — `Triệu đồng`,
 `đồng`, `tỷ đồng`, `1.000.000 đồng`, thậm chí sai chính tả như `Tr đồng`, `Tiệu đồng`. Nhưng
@@ -93,6 +107,12 @@ Chuỗi nào không chắc chắn là đơn vị tiền (`%`, `dự án`, `đơn
 quy đổi.
 
 Muốn xem toàn bộ cách viết đơn vị đang có trong file kết quả: gõ `./nsnn --units`.
+
+![./nsnn --units liệt kê 6 cách viết ĐVT: VND quy đổi được, còn trống, %, đơn vị, dự án và Công an tỉnh thì không](docs/images/nsnn-units.png)
+
+Năm dòng dưới mục *NOT CONVERTED* là đúng như thiết kế: không phải đơn vị tiền thì không quy
+đổi. Riêng `Công an tỉnh` là tên cơ quan lọt vào cột đơn vị — 6 dòng, không dòng nào có số,
+và **để nguyên** thay vì đoán.
 
 Kết quả thực tế đã chạy:
 
@@ -133,7 +153,28 @@ không.
 Nó cũng **không tự sửa số**. Chỗ nào dữ liệu nguồn có vấn đề, nó gắn cờ cảnh báo và giữ
 nguyên con số như đã công bố.
 
+Một ví dụ có thật: tách dòng tổng `I Thu nội địa` của Nghệ An năm 2020 ra các dòng con, rồi
+**tự đối chiếu lại** với con số tỉnh đã công bố:
+
+![Công cụ tách dòng cha thành 18 dòng con, cộng lại 16.658,849 tỷ so với 16.658,847 tỷ tỉnh công bố, chênh 0,002 tỷ](docs/images/mcp-break-down.png)
+
+Dòng `reconciles: YES` là phần quan trọng: nó nói cho bạn biết bảng có khớp hay không, thay vì
+đưa ra một con số rồi để bạn tin. Ở đây có 24 dòng nằm dưới dòng cha, nhưng chỉ 18 dòng con
+trực tiếp được cộng — cộng cả 24 là đúng cái bẫy gấp 6 lần nói ở trên.
+
 Chi tiết kỹ thuật: xem `mcp_server/README.md` và `docs/2026-09-13-mcp-server.md`.
+
+---
+
+## Xem nhanh bằng biểu đồ (tuỳ chọn)
+
+Mở file `dashboard/index.html` bằng trình duyệt. Không cần cài gì thêm, không cần mạng —
+mọi con số đã nằm sẵn trong file đó.
+
+![Trang biểu đồ: 3.814.427 dòng, 34 tỉnh, 8.660 báo cáo, và biểu đồ mức tự chủ ngân sách](docs/images/dashboard-hero.png)
+
+Trang này có 14 biểu đồ: 10 biểu đồ đọc chính con số ngân sách, 4 biểu đồ đọc mức độ công khai
+và chất lượng dữ liệu. Chi tiết: xem `dashboard/README.md`.
 
 ---
 
@@ -159,6 +200,30 @@ file do công cụ này sinh ra.
 
 Thư mục `samples/` chứa dữ liệu mẫu lấy từ cổng thông tin các tỉnh, để đối chiếu.
 Hai nguồn bổ sung cho nhau, không thay thế nhau.
+
+---
+
+## Hạn chế đã biết
+
+**Đơn vị tính được khai ở đầu bảng, không khai cho từng cột.** Một biểu ghi
+*"Đơn vị tính: Triệu đồng"* ở đầu, rồi bên trong có thêm cột `SO SÁNH (%)`. Công cụ gán đơn vị
+của cả bảng cho mọi dòng, nên dòng phần trăm cũng mang `ĐVT = VND`.
+
+- Phần lớn trường hợp **không sinh ra con số sai**: 34.232 dòng có giá trị gốc chứa dấu `%`
+  đều mang `ĐVT = VND` nhưng **không dòng nào** có số ở cột `Quy đổi VND` — vì `121%` không
+  đọc được thành số thì không quy đổi. (đã đếm trên `data/nsnn.db`)
+- Nhưng khi cột phần trăm ghi số trần, ví dụ `216.87` thay vì `216.87%`, thì con số **bị nhân
+  lên thành tiền**. Một ví dụ đã kiểm chứng: An Giang, biểu `66/CK-NSNN` năm 2020, cột
+  `SO SÁNH (%) / TỔNG SỐ / CHI THƯỜNG XUYÊN`, giá trị gốc `216.87660624369599` ra
+  `216.876.606 VND`.
+- **Chưa đếm được tổng số dòng bị ảnh hưởng.** Không thể chỉ dựa vào tên cột có chữ `%`: cột
+  `Trong đó: 90% NST` là tiền thật, còn cột `SO SÁNH ƯỚC THỰC HIỆN VỚI (%)` ở một số báo cáo
+  lại chứa số tuyệt đối. Muốn đếm đúng phải xét từng biểu. **Chưa sửa** — sửa bằng cách đoán
+  sẽ phạm đúng nguyên tắc "không tự suy đoán" ở trên.
+
+Các hạn chế khác: khoảng 50 bản ghi mỗi truy vấn CKNS bị thiếu so với con số máy chủ tự báo;
+527 báo cáo không rút được dòng nào, lý do ghi ở sheet `Pending_Review`; 757
+giá trị lệch 100 lần trở lên so với chính lịch sử của ô đó, **được gắn cờ chứ không sửa**.
 
 ---
 
