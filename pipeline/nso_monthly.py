@@ -47,7 +47,13 @@ SKIP_SLUG = re.compile(r'infographic|mot-so-chi-tieu|/rss/', re.I)
 
 #: Scale words, matched on the word before "đồng" exactly as pipeline/parse_xml does. A suffix
 #: test would read "triệu đồng" as plain đồng; that bug has already been paid for once here.
-SCALE = {'tỷ': 1e9, 'tỉ': 1e9, 'triệu': 1e6, 'nghìn': 1e3, 'ngàn': 1e3, 'đồng': 1.0}
+#: COMPOUND scales come first and must be tried first. The national report writes
+#: "2.023,8 nghìn tỷ đồng" - that is nghìn x tỷ = 1e12, not 1e9. Matching the last scale word
+#: before "đồng" reads it as "tỷ đồng" and lands 1000x low, which is the same shape as the
+#: "triệu đồng read as đồng" bug already paid for in parse_xml.
+SCALE = {'nghìn tỷ': 1e12, 'ngàn tỷ': 1e12, 'nghìn tỉ': 1e12,
+         'tỷ': 1e9, 'tỉ': 1e9, 'triệu': 1e6, 'nghìn': 1e3, 'ngàn': 1e3, 'đồng': 1.0}
+_SC = '|'.join(sorted(SCALE, key=len, reverse=True))
 
 
 def slug(name):
@@ -90,12 +96,15 @@ def num(s):
 
 
 def unit_factor(tail):
-    """Read the scale from the words right after the number. None when it cannot be read."""
-    m = re.match(r'\s*(tỷ|tỉ|triệu|nghìn|ngàn)?\s*đồng', tail, re.I)
+    """Read the scale from the words right after the number. None when it cannot be read.
+
+    Longest scale first, so "nghìn tỷ đồng" resolves to 1e12 rather than to the "tỷ" inside it.
+    """
+    m = re.match(r'\s*(' + _SC + r')?\s*đồng', tail, re.I)
     if not m:
         return None, ''
-    word = (m.group(1) or 'đồng').lower()
-    return SCALE.get(word), m.group(0).strip()
+    word = re.sub(r'\s+', ' ', (m.group(1) or 'đồng').lower())
+    return SCALE.get(word), re.sub(r'\s+', ' ', m.group(0).strip())
 
 
 #: Months are written as a WORD as often as a digit - "tháng Hai năm 2025", "tháng Sáu ước
@@ -107,12 +116,19 @@ MONTH_WORD = {'Một': 1, 'Hai': 2, 'Ba': 3, 'Tư': 4, 'Bốn': 4, 'Năm': 5, 'S
 #: Same words as ordinals in the cumulative clause: "lũy kế hai tháng đầu năm 2025".
 CUM_WORD = {'một': 1, 'hai': 2, 'ba': 3, 'tư': 4, 'bốn': 4, 'năm': 5, 'sáu': 6, 'bảy': 7,
             'tám': 8, 'chín': 9, 'mười': 10, 'mười một': 11, 'mười hai': 12}
-_MW = '|'.join(sorted(MONTH_WORD, key=len, reverse=True))
+#: Two-word months are written with either capitalisation - "tháng Mười hai" and "tháng Mười
+#: Hai" both occur - so the SECOND word is matched case-insensitively while the first stays
+#: case-sensitive, which is what keeps "Năm" (May) apart from "năm" (year). Matching the whole
+#: token case-sensitively made "Mười Hai" fall back to "Mười" and file December as month 10.
+def _mw_alt(w):
+    a, _, b = w.partition(' ')
+    return a + r'\s+[' + b[0].upper() + b[0].lower() + ']' + b[1:] if b else a
+_MW = '|'.join(_mw_alt(w) for w in sorted(MONTH_WORD, key=len, reverse=True))
 _CW = '|'.join(sorted(CUM_WORD, key=len, reverse=True))
 
 #: "tháng 8/2026", "tháng 8 năm 2026", "tháng Hai năm 2025", "tháng Sáu" (year omitted).
 MONTH = r'tháng\s*(\d{1,2}|' + _MW + r')\s*(?:/\s*(\d{4})|năm\s*(\d{4}))?'
-NUMU = r'([\d.,]+)\s*((?:tỷ|tỉ|triệu|nghìn|ngàn)?\s*đồng)'
+NUMU = r'([\d.,]+)\s*((?:' + _SC + r')?\s*đồng)'
 RE_MONTH_VAL = re.compile(r'Tổng\s+(thu|chi)\s+ngân\s+sách[^.;]*?' + MONTH +
                           r'[^.;]*?đạt\s+' + NUMU)
 #: "lũy kế 8 tháng", "lũy kế ... hai tháng đầu năm 2025"
@@ -124,8 +140,18 @@ RE_PART = re.compile(r'[Cc]hi\s+(đầu\s+tư\s+phát\s+triển|thường\s+xuy�
 
 
 def month_num(tok):
-    """'8' or 'Hai' -> 8 / 2. Case-sensitive on the word form; see MONTH_WORD."""
-    return int(tok) if tok.isdigit() else MONTH_WORD.get(tok)
+    """'8', 'Hai', 'Mười Hai' -> 8 / 2 / 12.
+
+    The first letter must be upper case - that is the only thing distinguishing "tháng Năm"
+    (May) from "năm" (year) - but the rest is compared case-insensitively so both spellings of
+    the two-word months resolve.
+    """
+    if tok.isdigit():
+        return int(tok)
+    tok = re.sub(r'\s+', ' ', tok.strip())
+    if not tok[:1].isupper():
+        return None
+    return next((v for k, v in MONTH_WORD.items() if k.lower() == tok.lower()), None)
 
 
 def cum_num(tok):
@@ -245,8 +271,150 @@ def province(name, host=None, years=(2025, 2026)):
                            'bai_doc': read, 'dong': len(rows), 'pending': len(pending)}
 
 
+def write_csv(rows, path):
+    import csv
+    with open(path, 'w', newline='', encoding='utf-8-sig') as fh:
+        w = csv.writer(fh)
+        w.writerow(['pham_vi', 'mat', 'ky', 'nam', 'thang', 'chi_tieu', 'gia_tri_goc',
+                    'dvt_nguon', 'vnd', 'nghin_ty', 'nguon'])
+        for r in sorted(rows, key=lambda r: (r['nam'], r['thang'] or 0, r['ky'], r['mat'])):
+            w.writerow([r['tinh'], r['mat'], r['ky'], r['nam'], r['thang'], r['chi_tieu'],
+                        r['gia_tri_goc'], r['dvt_nguon'], int(r['vnd']),
+                        round(r['vnd'] / 1e12, 4), r['nguon']])
+    return len(rows)
+
+
+NAT_LIST = 'https://www.nso.gov.vn/bao-cao-tinh-hinh-kinh-te-xa-hoi-hang-thang/'
+NAT_ART = re.compile(r'(https://www\.nso\.gov\.vn/[a-z-]+/\d{4}/\d{2}/'
+                     r'bao-cao-tinh-hinh-kinh-te-xa-hoi[^"\']*?)/?["\']')
+#: The month figure and the cumulative one, as the national report words them:
+#:   Tổng thu ngân sách Nhà nước tháng Tám ước đạt 150,4 nghìn tỷ đồng.
+#:   Lũy kế tổng thu ngân sách Nhà nước tám tháng năm 2026 ước đạt 2.023,8 nghìn tỷ đồng
+#: Two source quirks, both attested, both of which silently dropped a month:
+#:   - "tháng" is sometimes missing: "Tổng chi ngân sách Nhà nước Bảy ước đạt 164,9 ..."
+#:     (national report for July 2025). It is optional only before a capitalised month WORD;
+#:     making it optional before a digit would match unrelated numbers.
+#:   - a hedging word sits between "đạt" and the figure: "ước đạt gần 215,0 nghìn tỷ đồng"
+#:     (May 2026). The hedge is kept in `gia_tri_goc` so the reader sees the source said
+#:     "gần", and the number is recorded exactly as published.
+HEDGE = r'(?:gần|khoảng|hơn|trên|xấp\s*xỉ|ước\s+tính)?\s*'
+NAT_MONTH = re.compile(r'Tổng\s+(thu|chi)\s+ngân\s+sách\s+Nhà\s+nước\s+(?:tháng\s+)?('
+                       + _MW + r')[^.]*?đạt\s+' + HEDGE + NUMU +
+                       r'|Tổng\s+(?:thu|chi)\s+ngân\s+sách\s+Nhà\s+nước\s+tháng\s+'
+                       r'(\d{1,2})[^.]*?đạt\s+' + HEDGE + NUMU)
+NAT_CUM = re.compile(r'Lũy\s+kế\s+tổng\s+(thu|chi)\s+ngân\s+sách\s+Nhà\s+nước\s+('
+                     + _CW + r'|\d{1,2})\s+tháng\s+năm\s+(\d{4})[^.]*?đạt\s+' + NUMU)
+#: The December report states the YEAR total, with no month count: "Lũy kế tổng thu ngân sách
+#: Nhà nước năm 2025 ước đạt 2.650,1 nghìn tỷ đồng". Without this the year stayed unknown and
+#: fell back to the URL path - and that report is published in January, so December 2025 was
+#: filed as 2026.
+NAT_YEAR = re.compile(r'[Ll]ũy\s+kế[^.]{0,60}?năm\s+(\d{4})[^.]*?đạt\s+' + NUMU)
+
+
+def national_article(url):
+    """One national monthly report -> rows.
+
+    The page breaks a sentence across tags ("<b>Tổng thu ngân sách Nhà nước</b> tháng Tám ước
+    đạt 150,4 nghìn tỷ đồng."), so the whole document is flattened to ONE string before
+    matching; splitting on tags first loses every month figure while leaving the cumulative
+    ones intact, which fails silently and looks like the month is simply not published.
+    """
+    body, real = get(url)
+    flat = re.sub(r'\s+', ' ', ' '.join(text_of(body)))
+    # The report's own year always wins over the URL: a December report is published the
+    # following January, so the path year is one too high for every December figure.
+    ym = NAT_YEAR.search(flat)
+    yr = int(ym.group(1)) if ym else None
+    m = re.search(r'/(\d{4})/\d{2}/', real)
+    rows = []
+    for c in NAT_CUM.finditer(flat):          # cumulative first: it carries the year
+        side, nmtok, y, raw, unit = c.groups()
+        n, v, f = cum_num(nmtok), num(raw), unit_factor(unit)[0]
+        if None in (n, v, f):
+            continue
+        yr = int(y)
+        rows.append({'tinh': 'CẢ NƯỚC', 'mat': side.lower(), 'ky': f'luỹ kế {n} tháng',
+                     'thang': n, 'nam': yr, 'chi_tieu': 'tổng', 'gia_tri_goc': raw,
+                     'dvt_nguon': unit, 'vnd': v * f, 'nguon': real})
+    for mm in NAT_MONTH.finditer(flat):
+        g = mm.groups()
+        # Two alternatives in one pattern: word-month (groups 0-3) or digit-month (4-6).
+        if g[0] is not None:
+            side, motok, raw, unit = g[0], g[1], g[2], g[3]
+        else:
+            side = re.search(r'Tổng\s+(thu|chi)', mm.group(0)).group(1)
+            motok, raw, unit = g[4], g[5], g[6]
+        mo, v, f = month_num(motok), num(raw), unit_factor(unit)[0]
+        # The month sentence states no year; it is the year of the cumulative sentence beside
+        # it, falling back to the year in the URL path. Never guessed from "now".
+        y = yr or (int(m.group(1)) if m else None)
+        if None in (mo, v, f) or y is None:
+            continue
+        rows.append({'tinh': 'CẢ NƯỚC', 'mat': side.lower(), 'ky': 'tháng', 'thang': mo,
+                     'nam': y, 'chi_tieu': 'tổng', 'gia_tri_goc': raw, 'dvt_nguon': unit,
+                     'vnd': v * f, 'nguon': real})
+    return rows
+
+
+def national(years=(2025, 2026), max_pages=8):
+    """Every national monthly report for these years."""
+    urls = set()
+    for p in range(1, max_pages + 1):
+        u = NAT_LIST if p == 1 else f'{NAT_LIST}?paged={p}'
+        try:
+            body, _ = get(u, tries=2)
+        except Exception:
+            break
+        found = {h for h in NAT_ART.findall(body)}
+        if not (found - urls):
+            break
+        urls |= found
+    rows = []
+    for u in sorted(urls):
+        if not re.search(r'(?<!\d)(%s)(?!\d)' % '|'.join(str(y) for y in years), u):
+            continue
+        try:
+            rows += national_article(u)
+        except Exception:
+            continue
+    return rows
+
+
 if __name__ == '__main__':
     import sys
+    if sys.argv[1:2] == ['--national']:
+        rows = national()
+        n = write_csv(rows, 'output/nsnn_ca_nuoc_theo_thang.csv')
+        import collections
+        d = collections.defaultdict(dict)
+        for r in rows:
+            if r['ky'] == 'tháng':
+                d[(r['nam'], r['thang'])][r['mat']] = r['vnd'] / 1e12
+        print(f"{n} dòng -> output/nsnn_ca_nuoc_theo_thang.csv\n")
+        # QA: the source's own monthly figures need not add up to its own cumulative figure.
+        # Each month is an estimate published that month and never revised, while the
+        # cumulative one is re-estimated, so they drift. Reported, never reconciled by force:
+        # 2026 months 1 and 2 are both published as 163.0 while the 2-month cumulative is
+        # 311.0, so the published parts exceed the published whole by 15.0.
+        cum = {}
+        for r in rows:
+            if r['ky'].startswith('luỹ kế'):
+                cum[(r['nam'], r['thang'], r['mat'])] = r['vnd'] / 1e12
+        print("  KIỂM TRA nguồn tự khớp (cộng các tháng vs luỹ kế nguồn công bố):")
+        for (y, n_, mat), c in sorted(cum.items()):
+            parts = [d[(y, mm)].get(mat) for mm in range(1, n_ + 1) if (y, mm) in d]
+            if len(parts) != n_ or any(x is None for x in parts):
+                continue
+            ssum = sum(parts)
+            print(f"    {y} {n_:>2}T {mat}: cộng tháng {ssum:>8,.1f}  luỹ kế {c:>8,.1f}"
+                  f"  lệch {ssum - c:>+7,.1f}")
+        print(f"  {'tháng':<10}{'THU':>9}{'CHI':>9}{'THU-CHI':>10}")
+        for k in sorted(d):
+            t, c = d[k].get('thu'), d[k].get('chi')
+            bal = f"{t - c:>10,.1f}" if None not in (t, c) else f"{'—':>10}"
+            print(f"  {k[0]}-{k[1]:02d}   {t if t is not None else '—':>9}"
+                  f"{c if c is not None else '—':>9}{bal}")
+        raise SystemExit
     for nm in (sys.argv[1:] or ['Điện Biên']):
         rows, pending, st = province(nm)
         print(json.dumps(st, ensure_ascii=False))
@@ -256,3 +424,7 @@ if __name__ == '__main__':
                   f"{r['vnd']/1e9:>12,.2f} tỷ")
         for p in pending[:5]:
             print(f"   PENDING {p['reason']}: {p['text'][:90]}")
+
+
+# --------------------------------------------------------------- national, all of Vietnam
+#: The national monthly report. WordPress, "?paged=N" pagination, articles under /bai-top/.
