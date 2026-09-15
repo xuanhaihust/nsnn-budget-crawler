@@ -93,8 +93,8 @@ conversion was deliberately left blank.
 
 ## What the page shows
 
-**Ten analyses of the budget**, then four of the disclosure behind it. Every chart is below —
-all fourteen, in page order, captured from the page itself.
+**Eleven analyses of the budget**, then four of the disclosure behind it. Every chart is
+below — all fifteen, in page order, captured from the page itself.
 
 ### The budget
 
@@ -149,25 +149,46 @@ year — which is the reason for using a median at all.
 
 ![Median province revenue 12.0 to 18.6 nghìn tỷ, 2018 to 2024, with n under each year](../docs/images/dashboard-trend.png)
 
+**11 — When in the year the money actually moves — B60 / B61.** The only intra-year chart
+here, and the one that needed the most care. The corpus has **no monthly data at all**: forms
+B60 and B61 publish a cumulative year-to-date figure at four points — Quý I, 6 tháng, 9 tháng,
+Năm — in one column, `ƯỚC THỰC HIỆN QUÝ`. Differencing those gives four quarterly flows.
+
+Verified cumulative rather than per-period before anything was built on it: **73 of 80**
+(province, year) triples satisfy Q1 ≤ 6T ≤ 9T. The 7 that do not are source defects, and the
+24 (province, year) sets whose differencing yields a negative quarter are **dropped, never
+clamped to zero**.
+
+Plotted as each quarter's share of its own year, which is scale-free — the set of provinces
+reporting changes from year to year, and a share is not distorted by that the way a sum is.
+Each quarter's median is taken independently, so the four do not sum to exactly 100%
+(94.3%–109.9% by year); normalising them would be correcting the numbers.
+
+![Quarterly share of the year: spending 35% in Q4 against ~20% in each earlier quarter; revenue near even](../docs/images/dashboard-cash.png)
+
+Spending is **back-loaded**: Q4 takes 35% of the year while Q1–Q3 take about 20% each, and
+that holds in all six years (31.6%–42.2%). Revenue is nearly even, Q4 at 28%. Sample is small
+and is **not the country**: 57 (province, year) sets for spending, 55 for revenue.
+
 ### The disclosure behind it
 
-**11 — Who published what, and from when.** One cell per province-year, darker for more
+**12 — Who published what, and from when.** One cell per province-year, darker for more
 reports; an empty cell means that province published nothing that year.
 
 ![A coverage grid of 34 provinces against years 2005-2025](../docs/images/dashboard-heat.png)
 
-**12 — Volume by year and report type.** The three main types are the three stages of one
+**13 — Volume by year and report type.** The three main types are the three stages of one
 budget cycle: proposed, decided, then settled.
 
 ![Rows extracted per budget year, stacked by report type](../docs/images/dashboard-tl.png)
 
-**13 — How machine-readable it is.** Per province: reports read through Circular 343 XML, those
+**14 — How machine-readable it is.** Per province: reports read through Circular 343 XML, those
 that fell back to a spreadsheet, and those that yielded no rows at all. TP Hồ Chí Minh leads at
 78% XML, Phú Thọ trails at 46%.
 
 ![Machine-readability per province, 78% XML at the top and 46% at the bottom](../docs/images/dashboard-meth.png)
 
-**14 — Data quality, read through the unit column.** Every published ĐVT spelling, verbatim.
+**15 — Data quality, read through the unit column.** Every published ĐVT spelling, verbatim.
 Blue converts to VND, grey does not. All 14 currency spellings — 2,913,992 rows — now convert,
 including the four misspellings in the source documents. A new spelling would appear here as a
 grey bar containing `đồng`, which is the signal to add it by hand.

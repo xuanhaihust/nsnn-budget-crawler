@@ -49,3 +49,21 @@
   separator read as a decimal point (Đồng Nai's 2021 B46 total is `28.709234` where 2020 and
   2022 are `29106050` and `23556345`). Not corrected — flagged, and listed by
   `nsnn_list_data_quality(block='magnitude')`.
+
+- **There is no monthly data, and no national total.** `dim_period.kind` takes exactly four
+  values — `Quý` (only ever *Quý I*), `6 tháng`, `9 tháng`, `Năm` — so not one of the 3,814,427
+  rows is a month, and the finest time resolution the source has is a quarter. The sub-annual
+  points are **cumulative year-to-date**, not per-period: a quarterly flow is the difference
+  between successive points (verified — 73/80 (province, year) sets satisfy
+  Quý I ≤ 6 tháng ≤ 9 tháng). And the corpus is 34 provinces' **local** budgets: no central
+  budget, no bonds, no treasury deposits, no OMO, and summing provinces does not give a national
+  figure. Answer a "monthly, nationwide" question by saying so first — the two premises fail
+  before any query runs. `docs/2026-09-15-intra-year-cash-flow.md`.
+- **Compare sub-annual shares, never sums — the reporting set changes every year.** Only 55–57
+  of ~141 (province, year) sets publish all four cumulative points, and which provinces do
+  changes yearly, so a sum moves with coverage while a share does not. Measured this way,
+  spending is back-loaded (Q4 = 35.2% against ~20% per earlier quarter, stable across all six
+  years at 31.6–42.2%) and revenue is near-even (Q4 = 28.2%). 24 sets were **dropped** because
+  the cumulative series falls somewhere (Gia Lai 2023 reports 9 months as 0 after 2.9 nghìn tỷ
+  at 6 months) — a source defect, dropped outright rather than clamped to zero, same rule as
+  never inferring a value.

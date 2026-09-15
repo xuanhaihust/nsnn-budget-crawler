@@ -183,6 +183,18 @@
   </section>
 
   <section>
+    <h2>Tiền vào và ra kho bạc dồn vào lúc nào trong năm</h2>
+    <p class="sub">Tỉ trọng của <b>từng quý</b> trong tổng cả năm, lấy trung vị các tỉnh.
+      Đây là mức chi tiết theo thời gian <b>sâu nhất mà nguồn có</b> — biểu B60/B61 chỉ công
+      bố luỹ kế Quý I, 6 tháng, 9 tháng và cả năm, <b>không có số liệu theo tháng</b>. Bốn
+      dòng tiền quý là hiệu của các mốc luỹ kế đó.</p>
+    <div class="scroll"><svg id="cash"></svg></div>
+    <div class="lgd" id="cashlgd"></div>
+    <div class="note" id="cashnote"></div>
+    <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="cashtbl"></table></div></details>
+  </section>
+
+  <section>
     <h2>Tỉnh nào công khai, từ năm nào</h2>
     <p class="sub">Mỗi ô là số báo cáo một tỉnh công bố cho một năm ngân sách. Càng đậm càng nhiều.
       Ô trống nghĩa là năm đó tỉnh không công bố báo cáo nào lên cổng Bộ Tài chính.</p>
@@ -748,6 +760,78 @@ function complete(rows, keys){
     `Trung vị một tỉnh đi từ <b>${T3(a.med)}</b> lên <b>${T3(z.med)} nghìn tỷ</b> giữa ${a.y} và ` +
     `${z.y} (+${Math.round((z.med/a.med-1)*100)}%). Vùng nhạt là khoảng tứ phân vị. ` +
     `Số tỉnh công bố mỗi năm ghi dưới trục — đây là lý do dùng trung vị thay vì tổng.`;
+})();
+
+/* ---------- 11. intra-year cash flow ----------
+   Quarterly FLOWS, differenced from the cumulative year-to-date points the source publishes.
+   Plotted as each quarter's share of its own year, which is scale-free: the set of provinces
+   reporting changes from year to year, and a share is not distorted by that the way a sum is. */
+(function(){
+  const C = D.cashflow, Q = ['Quý I','Quý II','Quý III','Quý IV'];
+  const SER = [['revenue','Thu NSNN trên địa bàn','var(--s1)'],
+               ['spending','Chi ngân sách địa phương','var(--s2)']];
+  const L = 52, T = 14, GW = 150, BW = 46, GAP = 10, H = 250;
+  const max = 0.40;                                  // 40% - every observed value fits under it
+  const y = v => T + H - v/max*H;
+  const svg = SVGSET('cash', L + Q.length*GW + 16, T + H + 46,
+    'Tỉ trọng từng quý trong tổng cả năm, thu và chi');
+
+  [0, .1, .2, .25, .3, .4].forEach(v => {                   // gridlines, 25% marked
+    const even = Math.abs(v - .25) < 1e-9;
+    svg.appendChild(el('line', {x1:L-6, x2:L+Q.length*GW, y1:y(v), y2:y(v),
+      stroke: even ? 'var(--ink2)' : 'var(--grid)', 'stroke-dasharray': even ? '4 3' : ''}));
+    const t = el('text', {x:L-10, y:y(v)+4, 'text-anchor':'end', fill:'var(--muted)'});
+    t.textContent = PCT(v); svg.appendChild(t);
+  });
+  // Left-anchored above the dashed line: the Q4 columns reach 35% and would sit on top of it
+  // anywhere on the right-hand side.
+  const even = el('text', {x:L+4, y:y(.25)-7, fill:'var(--ink2)', 'font-size':11});
+  even.textContent = 'chia đều bốn quý = 25%'; svg.appendChild(even);
+
+  Q.forEach((qn, i) => {
+    const x0 = L + i*GW;
+    SER.forEach(([k, name, col], j) => {
+      const v = C[k].overall[i], bx = x0 + GAP + j*(BW+8);
+      const r = el('rect', {x:bx, y:y(v), width:BW, height:T+H-y(v), rx:3, fill:col,
+        tabindex:0, role:'img', 'aria-label':`${name} ${qn}: ${PCT(v)}`});
+      bind(r, `<b>${name}</b><br>${qn}: <b>${PCT(v)}</b> của cả năm<br>` +
+              `<em>trung vị ${C[k].n} bộ (tỉnh, năm)</em>`);
+      svg.appendChild(r);
+      // Halo: the 23-24% labels sit exactly on the dashed 25% reference line.
+      const lb = el('text', {x:bx+BW/2, y:y(v)-6, 'text-anchor':'middle', fill:'var(--ink2)',
+                             'font-weight':700, stroke:'var(--surface)', 'stroke-width':3,
+                             'paint-order':'stroke'});
+      lb.textContent = PCT(v); svg.appendChild(lb);
+    });
+    const t = el('text', {x:x0+GW/2, y:T+H+22, 'text-anchor':'middle', fill:'var(--ink2)'});
+    t.textContent = qn; svg.appendChild(t);
+  });
+
+  legend('cashlgd', SER.map(s => s[1]), SER.map(s => s[2]),
+         'Trung vị tỉ trọng từng quý trong tổng cả năm');
+
+  const r4 = C.revenue.overall[3], s4 = C.spending.overall[3];
+  document.getElementById('cashnote').innerHTML =
+    `<b>Chi dồn về cuối năm, thu thì không.</b> Quý IV nhận <b>${PCT(s4)}</b> tổng chi cả năm ` +
+    `trong khi ba quý đầu mỗi quý chỉ khoảng ${PCT(C.spending.overall[0])}; phía thu, quý IV là ` +
+    `<b>${PCT(r4)}</b> — gần mức chia đều. Nghĩa là trong ba quý đầu kho bạc hút ròng nhiều hơn ` +
+    `nhả ra, và đảo chiều ở quý IV. Mẫu nhỏ và không phải cả nước: ` +
+    `<b>${C.spending.n}</b> bộ (tỉnh, năm) cho chi và <b>${C.revenue.n}</b> cho thu, trên tổng ` +
+    `${C.spending.seen}/${C.revenue.seen} bộ có số — phần còn lại thiếu mốc luỹ kế. ` +
+    `${C.spending.dropped + C.revenue.dropped} bộ bị loại vì dãy luỹ kế <b>giảm</b> giữa chừng ` +
+    `(lỗi nguồn: một quý âm). Không suy đoán, không kẹp về 0 — loại thẳng. ` +
+    `Mỗi quý lấy trung vị <b>riêng</b>, nên bốn cột không cộng đúng 100% — chuẩn hoá cho tròn ` +
+    `là sửa số, nên để nguyên.`;
+
+  const tb = document.getElementById('cashtbl');
+  tb.innerHTML = '<thead><tr><th>Chỉ tiêu</th><th>Năm</th><th>Số tỉnh</th>' +
+    Q.map(q => `<th>${q}</th>`).join('') + '</tr></thead><tbody>' +
+    SER.map(([k, name]) => C[k].by_year.map(r =>
+      `<tr><td>${name}</td><td>${r.y}</td><td>${r.n}</td>` +
+      r.share.map(s => `<td>${(s*100).toFixed(1).replace('.',',')}%</td>`).join('') + '</tr>').join('')
+      + `<tr><td><b>${name}</b></td><td><b>gộp</b></td><td><b>${C[k].n}</b></td>` +
+        C[k].overall.map(s => `<td><b>${(s*100).toFixed(1).replace('.',',')}%</b></td>`).join('')
+      + '</tr>').join('') + '</tbody>';
 })();
 
 /* ---------- heatmap: province x year ---------- */

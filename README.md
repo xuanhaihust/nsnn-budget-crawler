@@ -200,6 +200,90 @@ Xem đủ 14 biểu đồ kèm giải thích: `dashboard/README.md`.
 
 ---
 
+## Tính chu kỳ dòng tiền ra/vào kho bạc
+
+Phần này trả lời câu hỏi: **tiền ngân sách chảy vào và ra dồn vào lúc nào trong năm.**
+
+**Đọc kỹ hai giới hạn trước khi dùng — cả hai đều đã kiểm trên kho dữ liệu, không phải phỏng đoán:**
+
+1. **Không có số liệu theo tháng.** Không một kỳ nào trong 3.814.427 dòng là tháng. Nguồn chỉ
+   công bố **bốn mốc luỹ kế**: Quý I, 6 tháng, 9 tháng, cả năm. Bốn dòng tiền quý dưới đây là
+   **hiệu** của các mốc đó. Đây là mức chi tiết sâu nhất nguồn này có.
+2. **Không phải cả nước.** Đây là ngân sách **34 tỉnh/thành**, không có ngân sách trung ương,
+   không có phát hành/đáo hạn trái phiếu, không có tiền gửi kho bạc tại NHTM. Không tỉnh nào
+   công bố số toàn quốc, và cộng các tỉnh lại **không** ra số cả nước.
+
+### Bảng dữ liệu — tỉ trọng từng quý trong tổng cả năm (trung vị các tỉnh)
+
+Nguồn: biểu **B60** (`A TỔNG THU NSNN TRÊN ĐỊA BÀN`) và **B61** (`TỔNG CHI NSĐP`), cột
+`ƯỚC THỰC HIỆN QUÝ`.
+
+| Chỉ tiêu | Năm | Số tỉnh | Quý I | Quý II | Quý III | Quý IV |
+|---|---|---:|---:|---:|---:|---:|
+| **Thu NSNN trên địa bàn** | 2018 | 9 | 20,3% | 24,3% | 25,4% | 26,6% |
+| | 2019 | 15 | 22,3% | 25,4% | 22,9% | 27,9% |
+| | 2020 | 11 | 25,6% | 21,5% | 22,4% | 30,8% |
+| | 2021 | 8 | 22,2% | 23,7% | 21,2% | 29,8% |
+| | 2022 | 3 | 25,3% | 24,2% | 23,1% | 24,5% |
+| | 2023 | 9 | 25,3% | 21,8% | 22,4% | 28,4% |
+| | **Gộp** | **55** | **22,8%** | **23,8%** | **23,1%** | **28,2%** |
+| **Chi ngân sách địa phương** | 2018 | 12 | 21,4% | 24,3% | 24,5% | 35,2% |
+| | 2019 | 12 | 20,2% | 21,4% | 18,6% | 37,8% |
+| | 2020 | 10 | 20,2% | 21,6% | 24,8% | 32,4% |
+| | 2021 | 8 | 23,2% | 22,6% | 20,9% | 34,8% |
+| | 2022 | 4 | 24,6% | 20,9% | 22,1% | 42,2% |
+| | 2023 | 11 | 22,7% | 19,8% | 20,2% | 31,6% |
+| | **Gộp** | **57** | **20,2%** | **21,3%** | **20,4%** | **35,2%** |
+
+![Biểu đồ tỉ trọng từng quý: chi dồn 35% vào quý IV, thu gần như chia đều](docs/images/dashboard-cash.png)
+
+> **Vì sao bốn quý không cộng đúng 100%:** mỗi quý lấy trung vị **riêng** trên các tỉnh, nên
+> bốn số trung vị không buộc phải cộng lại thành 1. Thực tế lệch 94,3%–109,9% tuỳ năm (dòng
+> Gộp: thu 98,0%, chi 97,1%). Cách khác là chuẩn hoá cho đủ 100%, nhưng như vậy là sửa số —
+> nên để nguyên.
+
+### Kết luận đọc được từ bảng
+
+- **Chi dồn mạnh về quý IV: 35,2% cả năm**, trong khi mỗi quý đầu chỉ ~20%. Đúng với thực tế
+  giải ngân đầu tư công dồn cuối năm. Ổn định qua cả 6 năm (31,6%–42,2%), không phải nhiễu.
+- **Thu gần như chia đều**, quý IV 28,2% — chỉ nhỉnh hơn mức chia đều 25% một chút.
+- **Hệ quả cho thanh khoản:** ba quý đầu kho bạc **hút ròng** nhiều hơn nhả ra; quý IV đảo
+  chiều, bơm ra mạnh. Đây là tín hiệu mùa vụ có thật, dùng được để định thời điểm.
+
+### Cỡ mẫu và phần bị loại — đọc trước khi tin con số
+
+| | Thu | Chi |
+|---|---:|---:|
+| Bộ (tỉnh, năm) có số | 141 | 142 |
+| Đủ cả 4 mốc luỹ kế | 67 | 69 |
+| Bị loại vì có quý âm | 12 | 12 |
+| **Thực dùng** | **55** | **57** |
+
+"Quý âm" nghĩa là dãy luỹ kế **giảm** giữa chừng — ví dụ Gia Lai 2023 có 9 tháng = 0 trong khi
+6 tháng đã 2,9 nghìn tỷ; Đà Nẵng 2018 có 6 tháng lớn hơn 9 tháng. Đó là lỗi nguồn. Chúng
+**bị loại thẳng**, không kẹp về 0 và không suy đoán — đúng nguyên tắc "không tự sửa số liệu
+nguồn".
+
+Tính luỹ kế đã được kiểm chứ không giả định: **73/80** bộ (tỉnh, năm) thoả Quý I ≤ 6 tháng ≤
+9 tháng.
+
+### Nếu anh cần số theo tháng và cả nước
+
+Kho dữ liệu này **không** cấp được. Những nguồn cấp được, và không nằm trong phạm vi công cụ
+hiện tại:
+
+| Cần gì | Ở đâu |
+|---|---|
+| Thu/chi NSNN **cả nước theo tháng** | Bộ Tài chính công bố ước thực hiện hàng tháng; Tổng cục Thống kê ra số tháng |
+| Tồn quỹ, tiền gửi kho bạc tại NHTM | Báo cáo Kho bạc Nhà nước / NHNN |
+| Phát hành, đáo hạn trái phiếu chính phủ | HNX (lịch và kết quả đấu thầu) |
+| Mua/bán có kỳ hạn giấy tờ có giá (OMO) | NHNN công bố hàng phiên |
+
+Ba dòng tiền còn lại mà anh liệt kê đều **không** nằm trong cổng công khai ngân sách của Bộ
+Tài chính, nên không crawler nào từ nguồn này lấy được.
+
+---
+
 ## Nguyên tắc số liệu
 
 Công cụ lấy đúng như nguồn công bố, **không tự suy đoán**:

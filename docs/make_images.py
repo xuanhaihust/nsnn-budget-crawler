@@ -262,7 +262,7 @@ tr:nth-child(even) td{{background:#fbfcfd}}
 #: Every chart on the page, in page order. The stem is the element id the section hangs off,
 #: so adding a chart to index.html means adding one line here and one image to its README.
 DASH_CHARTS = ['self', 'scat', 'rev', 'land', 'sect', 'edu', 'pa', 'debt', 'size', 'trend',
-               'heat', 'tl', 'meth', 'unit']
+               'cash', 'heat', 'tl', 'meth', 'unit']
 
 
 def group_dash():

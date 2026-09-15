@@ -199,9 +199,70 @@ trend = [dict(y=year, med=sorted(vals)[len(vals)//2], n=len(vals),
               lo=sorted(vals)[len(vals)//4], hi=sorted(vals)[len(vals)*3//4])
          for year, vals in sorted(peryear.items()) if len(vals) >= 8]
 
+# ---------------------------------------------------------------- intra-year cash flow
+# The finest period this corpus carries is the quarter, and only as a CUMULATIVE
+# year-to-date figure: forms B60/B61 publish "Quý I", "6 tháng", "9 tháng" and "Năm" in one
+# column, ƯỚC THỰC HIỆN QUÝ. Verified cumulative rather than per-period: 73 of 80 (province,
+# year) triples run Q1 <= 6T <= 9T. Differencing gives four quarterly FLOWS per year.
+#
+# Two things this is NOT, and the page says so: it is not monthly (no month exists anywhere
+# in the corpus), and it is not the country (34 provinces' local budgets, no central budget).
+CUM = {'Quý': 'c1', '6 tháng': 'c2', '9 tháng': 'c3', 'Năm': 'c4'}
+
+
+def quarters(form, indicator):
+    """Quarterly flows per (province, year), from the cumulative points. Negative quarters are
+    a source defect - a cumulative series that falls - and are dropped, never clamped."""
+    cum = {}
+    for r in q("""SELECT p.name AS prov, pe.year AS y, pe.kind AS k, v.vnd AS vnd
+                  FROM v_fact v JOIN fact_row f ON f.rowid = v.id
+                  JOIN dim_province p  ON p.id  = f.province_id
+                  JOIN dim_period   pe ON pe.id = f.period_id
+                  WHERE v.form_code = ? AND v.indicator_raw = ?
+                    AND v.series = 'ƯỚC THỰC HIỆN QUÝ' AND v.vnd IS NOT NULL""",
+               form, indicator):
+        cum.setdefault((r['prov'], r['y']), {})[CUM[r['k']]] = r['vnd']
+    flows, dropped = {}, 0
+    for key, v in cum.items():
+        if len(v) < 4 or v['c4'] <= 0:
+            continue
+        qs = [v['c1'], v['c2'] - v['c1'], v['c3'] - v['c2'], v['c4'] - v['c3']]
+        if min(qs) < 0:
+            dropped += 1
+            continue
+        flows[key] = dict(q=qs, year_total=v['c4'])
+    return flows, len(cum), dropped
+
+
+def profile(flows):
+    """Median share of the year landing in each quarter, per year and overall."""
+    med = lambda xs: sorted(xs)[len(xs) // 2]
+    by_year = {}
+    for (prov, year), v in flows.items():
+        by_year.setdefault(year, []).append([x / v['year_total'] for x in v['q']])
+    rows = [dict(y=year, n=len(s), share=[med([x[i] for x in s]) for i in range(4)])
+            for year, s in sorted(by_year.items())]
+    alls = [[x / v['year_total'] for x in v['q']] for v in flows.values()]
+    return rows, [med([x[i] for x in alls]) for i in range(4)]
+
+
+REV_FORM, REV_IND = 'B60', 'A TỔNG THU NSNN TRÊN ĐỊA BÀN'
+EXP_FORM, EXP_IND = 'B61', 'TỔNG CHI NSĐP'
+rev_flows, rev_seen, rev_drop = quarters(REV_FORM, REV_IND)
+exp_flows, exp_seen, exp_drop = quarters(EXP_FORM, EXP_IND)
+rev_rows, rev_all = profile(rev_flows)
+exp_rows, exp_all = profile(exp_flows)
+cashflow = dict(
+    revenue=dict(form=REV_FORM, indicator=REV_IND, by_year=rev_rows, overall=rev_all,
+                 n=len(rev_flows), seen=rev_seen, dropped=rev_drop),
+    spending=dict(form=EXP_FORM, indicator=EXP_IND, by_year=exp_rows, overall=exp_all,
+                  n=len(exp_flows), seen=exp_seen, dropped=exp_drop),
+)
+
 out = dict(
     generated_from='data/nsnn.db',
     kpi=kpi,
+    cashflow=cashflow,
     provinces=[{'id': p['id'], 'name': p['name']} for p in provinces],
     heat=heat,
     timeline=timeline,
@@ -230,3 +291,7 @@ print(f"  B46 province-years {len(budget)}, provinces with a self-sufficiency ra
 print(f"  revmix {len(revmix)} · sectmix {len(sectmix)} · planact {len(planact)}"
       f" · debt {len(debt)} · trend {len(trend)}")
 print(f"  ambiguous keys dropped: {AMBIG}")
+for name, blk in cashflow.items():
+    print(f"  cashflow {name:<9} {blk['n']:>3} of {blk['seen']} (province,year) usable, "
+          f"{blk['dropped']} dropped for a negative quarter · median share "
+          + " ".join(f"Q{i+1} {s*100:.1f}%" for i, s in enumerate(blk['overall'])))

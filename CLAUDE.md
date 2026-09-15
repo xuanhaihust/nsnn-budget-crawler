@@ -105,6 +105,14 @@ They are complementary. **Never present a CKNS workbook as replacing a manual fi
 mark a province COMPLETE on CKNS data alone.** A portal crawler for the agency layer does not
 exist yet.
 
+Two more limits, both measured, that a question about time or the country as a whole runs into
+before any query: **the finest time resolution is a quarter, never a month** — `dim_period.kind`
+is only `Quý` (always *Quý I*), `6 tháng`, `9 tháng`, `Năm`, and those sub-annual points are
+cumulative year-to-date, so a quarterly flow is their difference — and **there is no national
+total**: this is 34 provinces' local budgets, with no central budget, bonds, treasury deposits
+or OMO, and summing provinces does not produce a country figure.
+`docs/2026-09-15-intra-year-cash-flow.md`.
+
 ## Status
 
 All 34 provinces built and committed under `output/`: 3,814,427 rows, 0 failed reports, 500
