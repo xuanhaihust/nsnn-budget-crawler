@@ -33,10 +33,15 @@ CUM = {'Quý': 0, '6 tháng': 1, '9 tháng': 2, 'Năm': 3}
 
 #: Highest-coverage published headline total for each side, settled and planned.
 ANNUAL = [
-    ('THU  quyết toán', 'B63', 'A TỔNG THU CÂN ĐỐI NSNN', 'QUYẾT TOÁN/TỔNG THU NSNN'),
-    ('THU  dự toán',    'B63', 'A TỔNG THU CÂN ĐỐI NSNN', 'DỰ TOÁN/TỔNG THU NSNN'),
-    ('CHI  quyết toán', 'B62', 'B TỔNG CHI NSĐP',         'QUYẾT TOÁN'),
-    ('CHI  dự toán',    'B62', 'B TỔNG CHI NSĐP',         'DỰ TOÁN NĂM'),
+    # Quyết toán chốt chậm ~18 tháng theo luật, nên chuỗi này dừng ở 2022 - không phải thiếu
+    # dữ liệu, mà là quyết toán 2023 chưa tới hạn công bố.
+    ('THU  quyết toán',    'B63', 'A TỔNG THU CÂN ĐỐI NSNN',    'QUYẾT TOÁN/TỔNG THU NSNN'),
+    ('CHI  quyết toán',    'B62', 'B TỔNG CHI NSĐP',            'QUYẾT TOÁN'),
+    # Dự toán và ước thực hiện chạy tới 2024 - đây là chuỗi dùng cho năm gần đây.
+    ('THU  ước thực hiện', 'B60', 'A TỔNG THU NSNN TRÊN ĐỊA BÀN', 'ƯỚC THỰC HIỆN QUÝ'),
+    ('CHI  ước thực hiện', 'B61', 'TỔNG CHI NSĐP',              'ƯỚC THỰC HIỆN QUÝ'),
+    ('THU  dự toán',       'B48', 'TỔNG THU NGÂN SÁCH NHÀ NƯỚC', 'DỰ TOÁN/TỔNG THU NSNN'),
+    ('CHI  dự toán',       'B46', 'B TỔNG CHI NSĐP',            'DỰ TOÁN'),
 ]
 QUARTERLY = [
     ('THU NSNN trên địa bàn', 'B60', 'A TỔNG THU NSNN TRÊN ĐỊA BÀN'),
