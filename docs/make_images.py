@@ -259,11 +259,16 @@ tr:nth-child(even) td{{background:#fbfcfd}}
     _shot(doc, '.win', OUT / 'workbook-data-sheet.png', 1320)
 
 
+#: Every chart on the page, in page order. The stem is the element id the section hangs off,
+#: so adding a chart to index.html means adding one line here and one image to its README.
+DASH_CHARTS = ['self', 'scat', 'rev', 'land', 'sect', 'edu', 'pa', 'debt', 'size', 'trend',
+               'heat', 'tl', 'meth', 'unit']
+
+
 def group_dash():
     """dashboard/index.html, in both themes for the hero and light for the rest."""
     url = (ROOT / 'dashboard' / 'index.html').as_uri()
-    charts = [('self', 'self'), ('rev', 'rev'), ('sect', 'sect'), ('pa', 'pa'),
-              ('trend', 'trend'), ('heat', 'heat')]
+    charts = [(c, c) for c in DASH_CHARTS]
     with sync_playwright() as pw:
         b = _browser(pw)
         for theme in ('light', 'dark'):

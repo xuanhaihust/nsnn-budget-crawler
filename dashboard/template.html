@@ -212,8 +212,9 @@
 
   <section>
     <h2>Chất lượng dữ liệu</h2>
-    <p class="sub">Đơn vị tính quyết định có quy đổi được ra VND hay không. Chuỗi nào không
-      nhận dạng chắc chắn thì để trống thay vì đoán.</p>
+    <p class="sub">Mỗi thanh là một cách viết đơn vị tính <b>nguyên văn như nguồn công bố</b>.
+      Thanh xanh quy được về VND, thanh xám thì không — và chuỗi nào không nhận dạng chắc chắn
+      thì để trống thay vì đoán.</p>
     <div class="scroll"><svg id="unit"></svg></div>
     <div class="note" id="qnote"></div>
     <details><summary>Xem dạng bảng</summary><div class="tblwrap"><table id="unittbl"></table></div></details>
@@ -922,7 +923,7 @@ function complete(rows, keys){
       fill: u.f ? 'var(--s1)' : 'var(--axis)', tabindex:0, role:'img',
       'aria-label':`${u.u}: ${fmt(u.n)} dòng`});
     bind(r, `<b>${u.u}</b><br>${fmt(u.n)} dòng<br><em>${u.f
-      ? 'quy đổi ×'+fmt(u.f) : 'không quy đổi ra VND'}</em>`);
+      ? 'quy về VND' : 'không quy đổi ra VND'}</em>`);
     svg.appendChild(r);
     const v = el('text', {x:L+ww+8, y:y+RH/2+4, fill:'var(--ink2)'});
     v.textContent = compact(u.n); svg.appendChild(v);
@@ -931,16 +932,28 @@ function complete(rows, keys){
   // must end in a đồng-like word: /ông/ alone also matches "Công an tỉnh"
   const noVnd = D.units.filter(u => !u.f && /(đồng|dồng|đổng|đông)$/i.test(u.u.trim()));
   const lost = noVnd.reduce((a,u) => a+u.n, 0);
-  document.getElementById('qnote').innerHTML =
-    `<b>${fmt(lost)} dòng</b> mang đơn vị tiền tệ viết sai chính tả trong chính văn bản gốc — ` +
-    noVnd.map(u => `<code>${u.u}</code> (${fmt(u.n)})`).join(', ') +
-    ` — nên cố ý <b>để trống</b> cột quy đổi VND thay vì đoán. Thanh xám là các đơn vị ` +
-    `không quy đổi ra tiền: phần trăm, đơn vị đếm, và các lỗi chính tả trên.`;
+  const cur = D.units.filter(u => u.f);
+  const curRows = cur.reduce((a,u) => a+u.n, 0);
+  // Two states, and which one shows is the point of the chart. Every currency spelling
+  // converting is the good state; a spelling that names đồng and does not is a new
+  // misspelling to add by hand - see `./nsnn --units`.
+  document.getElementById('qnote').innerHTML = lost
+    ? `<b>${fmt(lost)} dòng</b> mang đơn vị tiền tệ viết sai chính tả trong chính văn bản gốc — ` +
+      noVnd.map(u => `<code>${u.u}</code> (${fmt(u.n)})`).join(', ') +
+      ` — nên cố ý <b>để trống</b> cột quy đổi VND thay vì đoán. Thanh xám là các đơn vị ` +
+      `không quy đổi ra tiền: phần trăm, đơn vị đếm, và các lỗi chính tả trên.`
+    : `Cả <b>${fmt(cur.length)} cách viết</b> đơn vị tiền tệ — <b>${fmt(curRows)} dòng</b> — ` +
+      `đều quy về <b>VND</b>, kể cả bốn lỗi chính tả trong chính văn bản gốc ` +
+      `(<code>Triệu dồng</code>, <code>Tiệu đồng</code>, <code>Tr đồng</code>, ` +
+      `<code>Triệu đổng</code>), vốn từng bị bỏ trống. Thanh xám là các đơn vị ` +
+      `<b>không</b> quy đổi ra tiền và cố ý để trống: phần trăm, đơn vị đếm, và một tên cơ ` +
+      `quan lọt vào cột đơn vị. Cách viết mới sẽ hiện ra ở đây dưới dạng thanh xám có chữ ` +
+      `“đồng” — đó là dấu hiệu phải thêm vào bảng nhận dạng bằng tay.`;
 
   const tb = document.getElementById('unittbl');
-  tb.innerHTML = '<thead><tr><th>Đơn vị tính</th><th>Số dòng</th><th>Hệ số quy đổi</th>' +
-    '</tr></thead><tbody>' + D.units.map(u =>
-    `<tr><td>${u.u}</td><td>${fmt(u.n)}</td><td>${u.f ? '×'+fmt(u.f) : '—'}</td></tr>`).join('') +
+  tb.innerHTML = '<thead><tr><th>Đơn vị tính (nguyên văn nguồn)</th><th>Số dòng</th>' +
+    '<th>Quy đổi</th></tr></thead><tbody>' + D.units.map(u =>
+    `<tr><td>${u.u}</td><td>${fmt(u.n)}</td><td>${u.f ? 'VND' : '—'}</td></tr>`).join('') +
     '</tbody>';
 })();
 
