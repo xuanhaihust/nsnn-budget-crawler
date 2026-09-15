@@ -107,7 +107,7 @@ Two more that cost real bugs: key a cell on `indicator_raw`, never the cleaned `
 level, it is 1 for 87% of rows.
 
 After changing anything under `mcp_server/`, run
-`.venv/bin/python mcp_server/test_server.py` — 97 checks, and several exist to hold lines that
+`.venv/bin/python mcp_server/test_server.py` — 133 checks, and several exist to hold lines that
 have broken before. Background in `docs/2026-09-13-mcp-server.md`.
 
 ## Rules you must not break
@@ -131,6 +131,11 @@ CP3/CP4/CP5). The owner's manual files come entirely from those portals and bare
 this output. Never call a CKNS workbook a replacement for a manual file, and never mark a
 province COMPLETE from CKNS data alone.
 
-One open limitation to keep mentioning: every query returns about 50 records fewer than the
-server's own `TotalItems`. Closing it needs a full-catalog harvest rather than per-province
-queries.
+One open limitation to keep mentioning: **2,230 of the 10,360 CKNS reports for the 34
+provinces are not in the warehouse yet.** The cause was paging, not a server limit —
+`PageIndex=0` returns everything, and `catalog()` was fixed on 2026-09-15 — but the fix only
+changes what a *new* crawl fetches. Until `./nsnn` is re-run and the ETL rebuilt, every figure
+in `output/`, `data/nsnn.db` and the dashboard comes from 8,130 of 10,360 reports, and the
+shortfall is worst on recent data: **1,195 of the 1,661 reports for period years 2024–2026 are
+missing, including all of 2026.** Say this whenever reporting a number drawn from the built
+data. `docs/2026-09-15-ckns-paging-gap.md`.
