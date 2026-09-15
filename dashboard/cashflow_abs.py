@@ -120,22 +120,28 @@ def quarterly():
         keep, dropped = magnitude_drop(rows)
         cum = collections.defaultdict(dict)
         for r in keep: cum[(r['prov'], r['y'])][CUM[r['k']]] = r['vnd']
-        panel, miss, neg = collections.defaultdict(list), collections.Counter(), collections.Counter()
+        panel = collections.defaultdict(list)
+        miss, neg, zero = collections.Counter(), collections.Counter(), collections.Counter()
         for (prov, y), v in cum.items():
             if len(v) < 4 or v[3] <= 0: miss[y] += 1; continue
             q = [v[0], v[1] - v[0], v[2] - v[1], v[3] - v[2]]
-            if min(q) < 0: neg[y] += 1; continue      # luỹ kế giảm = lỗi nguồn, loại thẳng
+            # Luỹ kế GIẢM (quý âm) và luỹ kế ĐỨNG YÊN (quý = 0) là cùng một loại lỗi nguồn:
+            # mốc sau chép lại mốc trước. Đắk Lắk 2019 chi: 16,17 / 0 / 0 / 0,45 - ba phần tư
+            # năm dồn vào quý I. Một quý bằng 0 của cả ngân sách tỉnh là không thể có thật, nên
+            # để trong bảng gộp sẽ bịa ra tính mùa vụ. Loại khỏi bảng, GIỮ trong CSV kèm cờ.
+            if min(q) < 0: neg[y] += 1; continue
+            if min(q) == 0: zero[y] += 1; continue
             panel[y].append((prov, q, v[3]))
         print(f"\n{name}   ({form})")
         print(f"  {'Năm':<7}{'Quý I':>13}{'Quý II':>13}{'Quý III':>13}{'Quý IV':>13}{'CẢ NĂM':>14}"
-              f"{'tỉnh':>7}{'/34':<5}  loại")
+              f"{'tỉnh':>7}{'/34':<5}  loại (thiếu+âm+bằng0)")
         tot = [0.0] * 4
         for y in sorted(panel):
             p = panel[y]
             if not p: continue
             s = [sum(r[1][i] for r in p) for i in range(4)]
             print(f"  {y:<7}" + ''.join(f"{x/TY:>13,.1f}" for x in s)
-                  + f"{sum(s)/TY:>14,.1f}{len(p):>7}{'/34':<5}  {miss[y]}+{neg[y]}")
+                  + f"{sum(s)/TY:>14,.1f}{len(p):>7}{'/34':<5}  {miss[y]}+{neg[y]}+{zero[y]}")
             for i in range(4): tot[i] += s[i]
         print(f"  {'GỘP':<7}" + ''.join(f"{x/TY:>13,.1f}" for x in tot) + f"{sum(tot)/TY:>14,.1f}")
 
@@ -157,12 +163,12 @@ def csv_out(path='output/ngan_sach_tuyet_doi.csv'):
     n = 0
     with open(path, 'w', newline='', encoding='utf-8-sig') as fh:
         w = csv.writer(fh)
-        w.writerow(['mat', 'bieu', 'series', 'tinh', 'nam', 'ky', 'vnd', 'nghin_ty'])
+        w.writerow(['mat', 'bieu', 'series', 'tinh', 'nam', 'ky', 'vnd', 'nghin_ty', 'canh_bao'])
         for name, form, ind, series in ANNUAL:
             keep, _ = magnitude_drop(cell(form, ind, series, kind='Năm'))
             for r in keep:
                 w.writerow([name, form, series, r['prov'], r['y'], 'Năm', int(r['vnd']),
-                            round(r['vnd'] / TY, 4)]); n += 1
+                            round(r['vnd'] / TY, 4), '']); n += 1
         for name, form, ind in QUARTERLY:
             keep, _ = magnitude_drop(cell(form, ind, series='ƯỚC THỰC HIỆN QUÝ'))
             cum = collections.defaultdict(dict)
@@ -170,10 +176,11 @@ def csv_out(path='output/ngan_sach_tuyet_doi.csv'):
             for (prov, y), v in sorted(cum.items()):
                 if len(v) < 4 or v[3] <= 0: continue
                 q = [v[0], v[1] - v[0], v[2] - v[1], v[3] - v[2]]
-                if min(q) < 0: continue
+                flag = ('luỹ kế giảm - lỗi nguồn' if min(q) < 0 else
+                        'luỹ kế đứng yên - lỗi nguồn' if min(q) == 0 else '')
                 for i, x in enumerate(q):
                     w.writerow([name, form, 'ƯỚC THỰC HIỆN QUÝ (dòng tiền quý)', prov, y,
-                                f'Quý {i+1}', int(x), round(x / TY, 4)]); n += 1
+                                f'Quý {i+1}', int(x), round(x / TY, 4), flag]); n += 1
     print(f'{path}  {n:,} dòng')
 
 
