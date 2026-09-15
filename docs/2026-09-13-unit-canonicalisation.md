@@ -100,6 +100,21 @@ in both, Nghệ An 102,684 rows summing 4.092877e+17 in both.
 | `dashboard/etl.py` | `dim_unit.canon`; recovers `ĐVT nguồn` from `Ghi chú` |
 | `dashboard/migrate_units.py` | the same rules against an existing `data/nsnn.db` |
 | `mcp_server/` | tool text updated; the unit checks are in `test_server.py` |
+| `dashboard/` | rebuilt 2026-09-15 — see below; the page was two days stale until then |
+
+**The dashboard did not follow automatically, and said so on its own face.** `data.json` and
+`index.html` are a separate build stage, so after the migration they still carried the
+pre-VND aggregates. Its unit chart kept claiming *"660 dòng … cố ý để trống cột quy đổi VND"*
+— true on 2026-09-12, false from 2026-09-14. Found on 2026-09-15 by screenshotting the page
+for its README, which is the argument for screenshots that regenerate.
+
+`aggregate.py` + `build_html.py` fixed it in seconds and moved exactly what it should:
+`vnd_rows` 1,992,983 → **1,993,578** (+595, the rows that gained a conversion), the six
+misspelling rows from factor 0 to factor 1, and per-province/indicator `vnd_n` up by the same
+595 in total. **No row count moved anywhere.** The chart's caption had to be rewritten as well,
+because with nothing left unconverted it rendered as *"0 dòng …"* followed by an empty list;
+it now states the good case and says a new misspelling will appear as a grey bar containing
+`đồng`.
 
 **No re-crawl is needed for any of it.** ĐVT, Giá trị chuẩn hóa, Quy đổi VND and Ghi chú are
 pure functions of what a workbook already holds. `./nsnn` is only for when the SOURCE data

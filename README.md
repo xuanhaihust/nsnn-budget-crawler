@@ -173,8 +173,30 @@ mọi con số đã nằm sẵn trong file đó.
 
 ![Trang biểu đồ: 3.814.427 dòng, 34 tỉnh, 8.660 báo cáo, và biểu đồ mức tự chủ ngân sách](docs/images/dashboard-hero.png)
 
-Trang này có 14 biểu đồ: 10 biểu đồ đọc chính con số ngân sách, 4 biểu đồ đọc mức độ công khai
-và chất lượng dữ liệu. Chi tiết: xem `dashboard/README.md`.
+Trang này có **14 biểu đồ**: 10 biểu đồ đọc chính con số ngân sách, 4 biểu đồ đọc mức độ công
+khai và chất lượng dữ liệu. Vài biểu đồ tiêu biểu:
+
+**Tỉnh tự lo được bao nhiêu phần ngân sách của mình** — Bắc Ninh 98%, Lạng Sơn 15%:
+
+![Biểu đồ mức tự chủ ngân sách, Bắc Ninh 98% cao nhất, Lạng Sơn 15% thấp nhất](docs/images/dashboard-self.png)
+
+**Tiền ngân sách đến từ đâu** — năm khoản thu lớn nhất của từng tỉnh:
+
+![Cơ cấu thu nội địa của từng tỉnh](docs/images/dashboard-rev.png)
+
+**Chi thường xuyên đi vào đâu** — trung vị: giáo dục 26%, y tế 24%, khoa học công nghệ chỉ 1%:
+
+![Cơ cấu chi thường xuyên theo lĩnh vực](docs/images/dashboard-sect.png)
+
+**Ngân sách phụ thuộc tiền bán đất đến mức nào** — trung vị 17%, Thanh Hóa 41%:
+
+![Tỉ lệ tiền sử dụng đất trên tổng thu nội địa](docs/images/dashboard-land.png)
+
+**Tỉnh nào công khai, từ năm nào** — ô trống là năm tỉnh không công bố gì lên cổng Bộ Tài chính:
+
+![Lưới độ phủ công khai: 34 tỉnh theo từng năm ngân sách](docs/images/dashboard-heat.png)
+
+Xem đủ 14 biểu đồ kèm giải thích: `dashboard/README.md`.
 
 ---
 

@@ -58,7 +58,12 @@ after a fresh clone `db.py restore` is the route in, not `etl.py`.
 `Quy đổi VND` is not a stored column: it is exactly `value * dim_unit.factor`, and `factor`
 is `0` in precisely the cases where the parser leaves the conversion blank. The `v_fact`
 view derives it, which keeps the rule in one place and takes 30 MB of duplicated floats out
-of the file. The view reproduces all 1,992,983 converted values in the workbooks exactly.
+of the file. The view reproduces all 1,993,578 converted values in the workbooks exactly.
+
+Since the VND unification, `fact_row.value` already holds the VND figure and every currency
+`factor` is `1`, so the multiplication is a no-op that keeps the shape. `dim_unit.label` still
+holds the spelling the province published, exposed as `v_fact.unit_source`; `dim_unit.canon`
+is the canonical one.
 
 ## Querying the warehouse
 
@@ -82,52 +87,92 @@ ORDER BY p.name, pe.year;
 
 `dim_indicator.clean` strips the outline marker that the source glues onto every label
 (`"I Thu nội địa"` → `Thu nội địa`, depth 1), so indicators group across provinces that
-number their rows differently. `dim_unit.factor` is the VND multiplier, `0` where the unit
-is unknown and the conversion was deliberately left blank.
+number their rows differently. `dim_unit.factor` is the VND multiplier — `1` for every currency
+spelling now that values are stored in VND, and `0` where the unit is unknown and the
+conversion was deliberately left blank.
 
 ## What the page shows
 
-**Ten analyses of the budget**, then four of the disclosure behind it.
+**Ten analyses of the budget**, then four of the disclosure behind it. Every chart is below —
+all fourteen, in page order, captured from the page itself.
 
-| # | Chart | Source | Headline |
-|---|---|---|---|
-| 1 | Self-sufficiency | B46 | Bắc Ninh raises 98% of its own revenue, Lạng Sơn 15% |
-| 2 | Self-sufficiency vs investment | B46 | r = 0.88 — the self-funded provinces are the ones that build |
-| 3 | Where revenue comes from | B63 quyết toán | Five largest sources per province, rest as "khác" |
-| 4 | Land-sale dependence | B63 | Median 25% of internal revenue; a one-off source that does not repeat |
-| 5 | Recurring spending by sector | B50 | Education 26%, health 24%, science and technology 1% |
-| 6 | Education vs health | B50 | The two dominant lines, side by side |
-| 7 | Plan vs outturn | B63 (both columns) | Revenue beats plan in 86% of province-years, median 106% |
-| 8 | Borrowing and repayment | B46 | All provinces low — local borrowing is capped by law |
-| 9 | Absolute size | B46 | The largest budget is ~16x the smallest |
-| 10 | Trend | B46 | Median province revenue 12.0 → 18.6 nghìn tỷ, 2018–2024 |
-| 11–14 | Coverage, volume, machine-readability, units | — | Disclosure and data quality |
+### The budget
 
-Chart 1 — each province's revenue split into what it raises itself and what the centre sends.
-Two published cells of one form, so there is nothing to double count:
+**1 — Self-sufficiency — B46.** Each province's revenue split into what it raises itself and what
+the centre sends. Two published cells of one form, so there is nothing to double count.
 
-![Self-sufficiency: Bắc Ninh 98% at the top, Lạng Sơn 15% at the bottom](../docs/images/dashboard-self.png)
+![Bắc Ninh raises 98% of its own revenue, Lạng Sơn 15%](../docs/images/dashboard-self.png)
 
-Chart 3 — the five largest revenue sources per province, everything else as `khác`:
+**2 — Self-sufficiency against investment — B46.** r = 0.88 over 31 provinces: the self-funded ones
+are the ones that build. The page says *tương quan, không phải nhân quả* on its own face.
 
-![Where revenue comes from, per province](../docs/images/dashboard-rev.png)
+![A scatter of self-sufficiency against investment share, r = 0.88](../docs/images/dashboard-scat.png)
 
-Chart 5 — recurrent spending by sector, and the legend that says one province was held back:
+**3 — Where the revenue comes from — B63, quyết toán.** The five largest domestic sources per province,
+everything else as `khác`.
+
+![Revenue composition per province, five named sources plus khác](../docs/images/dashboard-rev.png)
+
+**4 — Land-sale dependence — B63.** Land-use revenue over total domestic revenue. Median 17%,
+Thanh Hóa 41% at the top, TP Hồ Chí Minh 4% at the bottom — a one-off source that does not
+repeat once the land bank is gone.
+
+![Land-sale dependence, median 17%, Thanh Hóa 41% highest](../docs/images/dashboard-land.png)
+
+**5 — Recurrent spending by sector — B50.** Education 26% and health 24% at the median; science and
+technology 1%. The legend says how many provinces were held back for a missing component.
 
 ![Recurrent spending by sector, education 26% and health 24% at the median](../docs/images/dashboard-sect.png)
 
-Chart 7 — plan against outturn, both read from the same B63 report, so no cross-form join:
+**6 — Education against health — B50.** The two dominant lines side by side, per province — from
+Tuyên Quang at 35%/24% to Lai Châu at 17%/35%.
+
+![Education and health as shares of recurrent spending, per province](../docs/images/dashboard-edu.png)
+
+**7 — Plan against outturn — B63.** Both columns come from the same report, so there is no
+cross-form join. Revenue beats plan in 104 of 121 province-years (86%), median 106%.
 
 ![Plan vs outturn: revenue beats plan in 86% of province-years](../docs/images/dashboard-pa.png)
 
-Chart 10 — the median province rather than a national sum, with the reporting count printed
-under each year, which is the reason for using a median at all:
+**8 — Borrowing and repayment — B46.** Every province is low, because local borrowing is capped by
+the Budget Law. Cần Thơ is the highest at 13% of total spending.
+
+![Borrowing and repayment as a share of total spending, all provinces low](../docs/images/dashboard-debt.png)
+
+**9 — Absolute size — B46.** Hà Nội's 145.3 nghìn tỷ is 15.6x Quảng Trị's 9.3; the two largest
+cities together are about 34% of all 32 provinces in the chart.
+
+![Absolute budget size, Hà Nội 145.3 nghìn tỷ down to Quảng Trị 9.3](../docs/images/dashboard-size.png)
+
+**10 — Trend — B46.** The median province, not a national sum, with the reporting count under each
+year — which is the reason for using a median at all.
 
 ![Median province revenue 12.0 to 18.6 nghìn tỷ, 2018 to 2024, with n under each year](../docs/images/dashboard-trend.png)
 
-Chart 11 — who published what, and from which year:
+### The disclosure behind it
 
-![A coverage grid of 34 provinces against years](../docs/images/dashboard-heat.png)
+**11 — Who published what, and from when.** One cell per province-year, darker for more
+reports; an empty cell means that province published nothing that year.
+
+![A coverage grid of 34 provinces against years 2005-2025](../docs/images/dashboard-heat.png)
+
+**12 — Volume by year and report type.** The three main types are the three stages of one
+budget cycle: proposed, decided, then settled.
+
+![Rows extracted per budget year, stacked by report type](../docs/images/dashboard-tl.png)
+
+**13 — How machine-readable it is.** Per province: reports read through Circular 343 XML, those
+that fell back to a spreadsheet, and those that yielded no rows at all. TP Hồ Chí Minh leads at
+78% XML, Phú Thọ trails at 46%.
+
+![Machine-readability per province, 78% XML at the top and 46% at the bottom](../docs/images/dashboard-meth.png)
+
+**14 — Data quality, read through the unit column.** Every published ĐVT spelling, verbatim.
+Blue converts to VND, grey does not. All 14 currency spellings — 2,913,992 rows — now convert,
+including the four misspellings in the source documents. A new spelling would appear here as a
+grey bar containing `đồng`, which is the signal to add it by hand.
+
+![Every published unit spelling; 14 currency spellings covering 2,913,992 rows all convert to VND](../docs/images/dashboard-unit.png)
 
 ### The rule every one of these follows
 

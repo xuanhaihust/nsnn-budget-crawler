@@ -60,3 +60,12 @@
   corpus-wide count is NOT knowable from the column name — `Trong đó: 90% NST` is money, and
   some `SO SÁNH … (%)` columns hold absolute figures up to 2.976e12. Open, not fixed: blanking
   a conversion on a guess breaks the same rule as filling one on a guess.
+- **The dashboard is a separate build stage and does NOT follow a warehouse migration.**
+  `data/nsnn.db` was migrated to VND on 2026-09-14; `dashboard/data.json` and `index.html`
+  still carried the 2026-09-12 aggregates until 2026-09-15, so the page's own unit chart kept
+  claiming *"660 dòng … cố ý để trống cột quy đổi VND"* two days after that stopped being
+  true. Nothing warned about it — it surfaced only because the chart was screenshotted for its
+  README. After anything that touches `data/nsnn.db`, run `dashboard/aggregate.py` then
+  `dashboard/build_html.py` (seconds, no `work/` needed) and re-run `docs/make_images.py dash`.
+  Watch for captions computed from the data too: with nothing left unconverted the old caption
+  rendered as "0 dòng …" followed by an empty list.
