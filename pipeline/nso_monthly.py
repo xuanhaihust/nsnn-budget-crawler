@@ -304,6 +304,17 @@ NAT_MONTH = re.compile(r'Tổng\s+(thu|chi)\s+ngân\s+sách\s+Nhà\s+nước\s+(
                        r'(\d{1,2})[^.]*?đạt\s+' + HEDGE + NUMU)
 NAT_CUM = re.compile(r'Lũy\s+kế\s+tổng\s+(thu|chi)\s+ngân\s+sách\s+Nhà\s+nước\s+('
                      + _CW + r'|\d{1,2})\s+tháng\s+năm\s+(\d{4})[^.]*?đạt\s+' + NUMU)
+#: Anchor for reading one side's whole sentence: it opens with "Tổng thu/chi ngân sách Nhà
+#: nước" and carries BOTH figures, the month and the cumulative one.
+NAT_SIDE = re.compile(r'Tổng\s+(thu|chi)\s+ngân\s+sách\s+Nhà\s+nước')
+#: Within one side's segment. "tháng" is sometimes missing before a WORD month ("... Nhà nước
+#: Bảy ước đạt 164,9", July 2025); never optional before a digit, which would match anything.
+NAT_MONTH_IN = re.compile(r'^\s*(?:tháng\s*)?(' + _MW + r'|/?\s*\d{1,2}\s*/\s*\d{4}|\d{1,2})'
+                          r'[^.;]*?đạt\s+' + HEDGE + NUMU)
+#: The cumulative clause. Most reports write "lũy kế ... hai tháng ĐẦU năm 2026"; matching only
+#: the minority wording without "đầu" left the cumulative series with 4 points out of 20.
+NAT_CUM_IN = re.compile(r'[Ll]ũy\s+kế[^.]*?(' + _CW + r'|\d{1,2})\s+tháng(?:\s+đầu)?'
+                        r'(?:\s+năm\s+(\d{4}))?[^.]*?đạt\s+' + HEDGE + NUMU)
 #: The December report states the YEAR total, with no month count: "Lũy kế tổng thu ngân sách
 #: Nhà nước năm 2025 ước đạt 2.650,1 nghìn tỷ đồng". Without this the year stayed unknown and
 #: fell back to the URL path - and that report is published in January, so December 2025 was
@@ -325,34 +336,38 @@ def national_article(url):
     # following January, so the path year is one too high for every December figure.
     ym = NAT_YEAR.search(flat)
     yr = int(ym.group(1)) if ym else None
-    m = re.search(r'/(\d{4})/\d{2}/', real)
-    rows = []
-    for c in NAT_CUM.finditer(flat):          # cumulative first: it carries the year
-        side, nmtok, y, raw, unit = c.groups()
-        n, v, f = cum_num(nmtok), num(raw), unit_factor(unit)[0]
-        if None in (n, v, f):
-            continue
-        yr = int(y)
-        rows.append({'tinh': 'CẢ NƯỚC', 'mat': side.lower(), 'ky': f'luỹ kế {n} tháng',
-                     'thang': n, 'nam': yr, 'chi_tieu': 'tổng', 'gia_tri_goc': raw,
-                     'dvt_nguon': unit, 'vnd': v * f, 'nguon': real})
-    for mm in NAT_MONTH.finditer(flat):
-        g = mm.groups()
-        # Two alternatives in one pattern: word-month (groups 0-3) or digit-month (4-6).
-        if g[0] is not None:
-            side, motok, raw, unit = g[0], g[1], g[2], g[3]
-        else:
-            side = re.search(r'Tổng\s+(thu|chi)', mm.group(0)).group(1)
-            motok, raw, unit = g[4], g[5], g[6]
-        mo, v, f = month_num(motok), num(raw), unit_factor(unit)[0]
-        # The month sentence states no year; it is the year of the cumulative sentence beside
-        # it, falling back to the year in the URL path. Never guessed from "now".
-        y = yr or (int(m.group(1)) if m else None)
-        if None in (mo, v, f) or y is None:
-            continue
-        rows.append({'tinh': 'CẢ NƯỚC', 'mat': side.lower(), 'ky': 'tháng', 'thang': mo,
-                     'nam': y, 'chi_tieu': 'tổng', 'gia_tri_goc': raw, 'dvt_nguon': unit,
-                     'vnd': v * f, 'nguon': real})
+    if yr is None:
+        m = re.search(r'/(\d{4})/\d{2}/', real)
+        yr = int(m.group(1)) if m else None
+    if yr is None:
+        return []
+
+    # Read each side as ONE sentence rather than with two independent patterns: the report
+    # states the month figure and the cumulative one together, separated by a semicolon, and
+    # only the opening words say which side they belong to.
+    rows, anchors = [], list(NAT_SIDE.finditer(flat))
+    for k, a in enumerate(anchors):
+        side = a.group(1).lower()
+        stop = anchors[k + 1].start() if k + 1 < len(anchors) else a.end() + 400
+        seg = flat[a.end():stop]
+        mm = NAT_MONTH_IN.search(seg)
+        if mm:
+            # "01/2026" -> "01"; a word month keeps its single internal space, because
+            # stripping all whitespace turns "Mười Hai" into "MườiHai" and the lookup misses.
+            tok = mm.group(1).strip().lstrip('/').split('/')[0].strip()
+            mo, v, f = month_num(tok), num(mm.group(2)), unit_factor(mm.group(3))[0]
+            if None not in (mo, v, f):
+                rows.append({'tinh': 'CẢ NƯỚC', 'mat': side, 'ky': 'tháng', 'thang': mo,
+                             'nam': yr, 'chi_tieu': 'tổng', 'gia_tri_goc': mm.group(2),
+                             'dvt_nguon': mm.group(3), 'vnd': v * f, 'nguon': real})
+        cm = NAT_CUM_IN.search(seg)
+        if cm:
+            n, v, f = cum_num(cm.group(1)), num(cm.group(3)), unit_factor(cm.group(4))[0]
+            if None not in (n, v, f):
+                rows.append({'tinh': 'CẢ NƯỚC', 'mat': side, 'ky': f'luỹ kế {n} tháng',
+                             'thang': n, 'nam': int(cm.group(2)) if cm.group(2) else yr,
+                             'chi_tieu': 'tổng', 'gia_tri_goc': cm.group(3),
+                             'dvt_nguon': cm.group(4), 'vnd': v * f, 'nguon': real})
     return rows
 
 
@@ -384,6 +399,28 @@ if __name__ == '__main__':
     import sys
     if sys.argv[1:2] == ['--national']:
         rows = national()
+        # A SECOND monthly series, differenced from the cumulative points. It exists because
+        # the first one does not add up: the month figure is an early estimate published that
+        # month and never revised, while the cumulative figure is re-estimated, so summing the
+        # published months falls ~8-9% short of the published cumulative on the revenue side
+        # (-60 at 2 months, -130 at 6, -176 at 8 for 2026). Spending is additive (-0.0% at 8
+        # months). Neither series is corrected; both are published side by side so the reader
+        # picks the basis. Differences are only emitted where BOTH endpoints exist.
+        import collections
+        cum = collections.defaultdict(dict)
+        for r in rows:
+            if r['ky'].startswith('luỹ kế'):
+                cum[(r['nam'], r['thang'])][r['mat']] = r
+        for (y, mo), sides in sorted(cum.items()):
+            for mat, cur in sides.items():
+                prev = cum.get((y, mo - 1), {}).get(mat) if mo > 1 else None
+                base = 0.0 if mo == 1 else (prev['vnd'] if prev else None)
+                if base is None:
+                    continue
+                rows.append({'tinh': 'CẢ NƯỚC', 'mat': mat, 'ky': 'tháng (suy từ luỹ kế)',
+                             'thang': mo, 'nam': y, 'chi_tieu': 'tổng',
+                             'gia_tri_goc': '', 'dvt_nguon': cur['dvt_nguon'],
+                             'vnd': cur['vnd'] - base, 'nguon': cur['nguon']})
         n = write_csv(rows, 'output/nsnn_ca_nuoc_theo_thang.csv')
         import collections
         d = collections.defaultdict(dict)
