@@ -234,12 +234,40 @@ The project's data rules are enforced at the serialization layer, not just in th
 | `warehouse.py` | Read-only connection, Vietnamese folding, outline parsing, money, rendering |
 | `sqlguard.py` | The five-layer guard behind `nsnn_run_sql` |
 | `search.py` | The folded FTS5 index and its queries |
-| `tools.py` | The 15 tool implementations — plain functions, testable without MCP |
+## A second corpus: the country, by month
+
+Fifteen of the sixteen tools read one thing — 34 provinces' **local** budgets, quarterly at
+finest, from the Ministry of Finance disclosure portal. `nsnn_read_national_monthly` reads
+something else entirely: **Vietnam as a whole, by month**, from the statistics office's monthly
+socio-economic report. It includes the central budget; the other fifteen do not.
+
+It lives in its own table, `fact_national_monthly`, with **no join path** to `fact_row` — no
+province id, no period id, no report id. That is deliberate and tested: a national total is not
+a 35th province, and the surest way to wreck this warehouse is to let the two be summed.
+
+`basis` selects one of three series for the same month, which must never be added together:
+
+| basis | what it is |
+|---|---|
+| `tháng` | as the source published it in that month |
+| `luỹ kế` | year to date through `month`, as published |
+| `tháng (suy từ luỹ kế)` | successive difference of the cumulative series — computed here |
+
+The third exists because the first does not add up. The source's own monthly **revenue** falls
+8–10% short of its own cumulative at every checkpoint (2026, 8 months: 1,847.8 vs 2,023.8
+nghìn tỷ), because a month figure is an early estimate never revised while the cumulative one
+is re-estimated upward. Spending is additive (−0.0%). Use `tháng` for when money moved,
+`tháng (suy từ luỹ kế)` for how much. Nothing is corrected.
+
+Everything in this corpus is an estimate (*ước đạt*), not a settled account. Load it with
+`dashboard/load_national.py`; background in `docs/2026-09-18-national-monthly.md`.
+
+| `tools.py` | The 16 tool implementations — plain functions, testable without MCP |
 | `server.py` | MCP registration and both transports |
 | `test_server.py` | `.venv/bin/python mcp_server/test_server.py` |
 
 `tools.py` deliberately knows nothing about MCP, so every rule above can be tested by calling
-a function. `test_server.py` holds 97 checks, including a 15-case attack suite and six
+a function. `test_server.py` holds 146 checks, including a 15-case attack suite and six
 concurrent calls.
 
 Two implementation facts worth knowing before editing:

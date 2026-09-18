@@ -32,9 +32,13 @@ import pathlib, re, sqlite3, unicodedata
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DB = ROOT / 'data' / 'nsnn.db'
 
-# Everything an agent may read. Checked by name, so a table added later is denied by default.
+# Everything an agent may read. Checked by name, so a table added later is denied by default -
+# which is why `fact_national_monthly` had to be named here explicitly when it was added.
+# It is a SEPARATE corpus (whole country, monthly) with no join path to fact_row (34 provinces,
+# quarterly at finest); being readable does not make the two addable.
 READABLE = {'fact_row', 'dim_province', 'dim_period', 'dim_scope', 'dim_table', 'dim_indicator',
-            'dim_series', 'dim_unit', 'dim_raw', 'dim_report', 'v_fact', 'sqlite_master'}
+            'dim_series', 'dim_unit', 'dim_raw', 'dim_report', 'v_fact', 'sqlite_master',
+            'fact_national_monthly'}
 
 
 class WarehouseMissing(RuntimeError):
@@ -199,11 +203,15 @@ def outline(label, lettered=False):
 # --- numbers -------------------------------------------------------------------------------
 
 TY = 1_000_000_000                      # tỷ đồng, the unit a Vietnamese reader recognises
-IMPLAUSIBLE = 1e15                      # above this the source declared the wrong unit
+#: Above this a PROVINCIAL figure means the source declared the wrong unit - the largest real
+#: provincial budget in the corpus is Hà Nội 2021 at 1.96e14. It is NOT a universal ceiling:
+#: the national budget really is ~2.6e15, so money() takes `cap=None` for that corpus rather
+#: than stamping "!scale?" on correct figures and teaching the reader to ignore the flag.
+IMPLAUSIBLE = 1e15
 MAX_EXACT = 2 ** 53
 
 
-def money(vnd):
+def money(vnd, cap=IMPLAUSIBLE):
     """VND to tỷ đồng as fixed-point text. Never scientific, never thousands separators.
 
     No separators on purpose: Vietnamese sources write 146.068 for 146068 and use ',' as the
@@ -213,6 +221,11 @@ def money(vnd):
     500,000, which three decimals of tỷ đồng rounds away - printing those as "0" would make a
     published value indistinguishable from a published zero, in a corpus whose first rule is
     that a blank is not a zero.
+
+    `cap` is the implausibility ceiling, provincial by default. Pass None for a corpus whose
+    real figures exceed it - the national series does - so a correct number is not stamped
+    "!scale?". A flag that fires on good data is worse than no flag: it trains the reader to
+    ignore it on the bad data it was built for.
     """
     if vnd is None:
         return ''
@@ -222,7 +235,7 @@ def money(vnd):
         s = f"{v:.9f}".rstrip('0').rstrip('.') or f"{v:.2e}"
     elif s in ('', '-0'):
         s = '0'
-    return s + ('!scale?' if abs(vnd) > IMPLAUSIBLE else '')
+    return s + ('!scale?' if cap is not None and abs(vnd) > cap else '')
 
 
 def confidence(vnd, series, unit):

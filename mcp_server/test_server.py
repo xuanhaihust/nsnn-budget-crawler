@@ -322,5 +322,57 @@ _threads = [threading.Thread(target=_hit) for _ in range(6)]
 check('6 concurrent tool calls all finish', len(_conc) == 6 and all(c is True for c in _conc),
       f"{len(_conc)}/6 returned: {[c for c in _conc if c is not True][:1]}")
 
+# --- national monthly: a separate corpus that must stay separate ------------------------------
+
+_nat = tools._nat_ready()
+check('fact_national_monthly is in the warehouse', _nat,
+      'run dashboard/load_national.py')
+
+if _nat:
+    _c = tools.con()
+    check('the national table is readable through the authorizer',
+          _c.execute("SELECT COUNT(*) FROM fact_national_monthly").fetchone()[0] > 0)
+    # Naming a new table in READABLE is easy to forget; this is the check that catches it.
+    check('fact_national_monthly is in READABLE', 'fact_national_monthly' in w.READABLE)
+
+    _bases = {r[0] for r in _c.execute("SELECT DISTINCT basis FROM fact_national_monthly")}
+    check('exactly three bases, cumulative not split by N',
+          _bases == {'tháng', 'luỹ kế', 'tháng (suy từ luỹ kế)'}, sorted(_bases))
+
+    _out = tools.read_national_monthly(year=2026, basis='tháng')
+    check('national monthly returns 2026 months', '2026-08' in _out)
+    check('national output warns it is a different corpus',
+          'KHÔNG phải cùng phạm vi' in _out)
+    check('national monthly warns that revenue does not add up',
+          'KHÔNG CỘNG ĐÚNG' in _out)
+    check('a bad basis is refused, not silently defaulted',
+          'basis must be one of' in tools.read_national_monthly(basis='banana'))
+    check('a bad side is refused', "side must be" in tools.read_national_monthly(side='x'))
+
+    # The provincial implausibility ceiling is 1e15 and real national figures exceed it. If
+    # money() ever stamps those again, a correct 2.02e15 cumulative reads as suspect and the
+    # flag stops meaning anything on the rows it was built for.
+    _cum = tools.read_national_monthly(year=2026, basis='luỹ kế', side='thu')
+    check('national cumulative is not falsely flagged !scale?', '!scale?' not in _cum)
+    check('the provincial ceiling still flags a provincial outlier',
+          w.money(5.32e21).endswith('!scale?'))
+
+    # The two corpora must not be joinable by accident: no province column, no period id.
+    # Read the DDL rather than PRAGMA table_info - the authorizer denies PRAGMA, correctly.
+    _ddl = _c.execute("SELECT sql FROM sqlite_master WHERE name='fact_national_monthly'"
+                      ).fetchone()[0]
+    check('national table has no province/period join path',
+          not any(k in _ddl for k in ('province_id', 'period_id', 'report_id')), _ddl[:120])
+
+    # The additivity defect is a property of the source; assert it is still true rather than
+    # quoting it from a comment, so a reload that changes it fails loudly.
+    _gap = _c.execute("""SELECT (SELECT SUM(vnd) FROM fact_national_monthly
+                                 WHERE basis='tháng' AND side='thu' AND year=2026 AND month<=8)
+                              - (SELECT vnd FROM fact_national_monthly
+                                 WHERE basis='luỹ kế' AND side='thu' AND year=2026 AND month=8)
+                      """).fetchone()[0]
+    check('2026 revenue months still fall short of the published cumulative',
+          _gap is not None and -2e14 < _gap < -1e14, f"gap={_gap}")
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

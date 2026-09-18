@@ -199,12 +199,37 @@ expose(tools.trace_source, 'nsnn_trace_source', """
     source URL for any of its 8,660 reports, so do not construct one.
 """)
 
+expose(tools.read_national_monthly, 'nsnn_read_national_monthly', """
+    Vietnam's state budget revenue and spending BY MONTH, for the country as a whole.
+
+    A DIFFERENT CORPUS from every other tool here, and the difference is the point. Every
+    other tool reads the 34 provinces' LOCAL budgets, quarterly at finest, from the Ministry
+    of Finance disclosure portal. This reads the whole country, monthly, from the statistics
+    office's monthly socio-economic report. It includes the central budget; those do not.
+    Never add the two together, and never compare one against the other as like for like.
+
+    basis picks one of three series for the same month, which must never be summed together:
+      'tháng'                  as the source published it in that month
+      'tháng (suy từ luỹ kế)'  successive difference of the cumulative series, computed here
+      'luỹ kế N tháng'         year to date, as published
+
+    The published monthly REVENUE does not add up to the published cumulative - it falls 8-10%
+    short at every checkpoint, because a month figure is an early estimate that is never
+    revised while the cumulative one is re-estimated upward. Spending is additive. Use 'tháng'
+    for when money moved and 'tháng (suy từ luỹ kế)' for how much.
+
+    Everything here is an estimate ("ước đạt"), not a settled account.
+""")
+
 expose(tools.run_sql, 'nsnn_run_sql', """
     Escape hatch: ONE read-only SELECT over the warehouse. Prefer the curated tools - they
     encode the correctness rules this raw access does not.
 
     Tables: fact_row + dim_province/period/scope/table/indicator/series/unit/raw/report, and
-    the view v_fact which joins them all. Query v_fact unless you need speed: its columns are
+    the view v_fact which joins them all. Also fact_national_monthly, which is a SEPARATE
+    corpus - the whole country by month, not the 34 provinces by quarter - and has no join
+    path to the rest on purpose. Never UNION or add the two: one includes the central budget
+    and the other does not. Query v_fact unless you need speed: its columns are
     province, period, year, kind, scope, table_label, form_code, indicator_raw, indicator,
     depth, series, unit, unit_source, raw, value, vnd, report_id, id.
 

@@ -27,7 +27,9 @@ Always use `.venv/bin/python` — the system Python has neither `xlrd` nor `open
 | `mcp_server/server.py` | 15 read-only MCP tools over the warehouse |
 | `pipeline/fix_units.py` | re-apply the unit rules to existing workbooks, offline |
 | `dashboard/migrate_units.py` | the same for `data/nsnn.db` |
-| `mcp_server/test_server.py` | 133 checks — run after touching `mcp_server/` |
+| `mcp_server/test_server.py` | 146 checks — run after touching `mcp_server/` |
+| `pipeline/nso_monthly.py --national` | the national MONTHLY series (a different source) |
+| `dashboard/load_national.py` | load that series into the warehouse as its own table |
 | `docs/make_images.py` | rebuild every README screenshot from live data |
 
 ## Layout
@@ -112,6 +114,13 @@ cumulative year-to-date, so a quarterly flow is their difference — and **there
 total**: this is 34 provinces' local budgets, with no central budget, bonds, treasury deposits
 or OMO, and summing provinces does not produce a country figure.
 `docs/2026-09-15-intra-year-cash-flow.md`.
+
+Both limits are about `fact_row`. A **second, separate corpus** answers the monthly national
+question that `fact_row` cannot: `fact_national_monthly`, the whole country by month from the
+statistics office, reachable through `nsnn_read_national_monthly`. It is a different source,
+a different scope (it includes the central budget) and a different period grain, and it has
+**no join path to `fact_row` on purpose** — the two must never be added or compared as like
+for like. `docs/2026-09-18-national-monthly.md`.
 
 ## Status
 

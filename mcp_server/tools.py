@@ -221,6 +221,8 @@ def describe_corpus() -> str:
     reps = one("SELECT COUNT(*) FROM dim_report")
     pend = one("SELECT COUNT(*) FROM dim_report WHERE rows = 0")
     y0, y1 = c.execute("SELECT MIN(year), MAX(year) FROM dim_period WHERE year IS NOT NULL").fetchone()
+    nat = c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND "
+                    "name='fact_national_monthly'").fetchone()[0]
     scopes = [f"{r['label']} ({r['n']:,})" for r in c.execute(
         """SELECT s.label, COUNT(*) AS n FROM fact_row f JOIN dim_scope s ON s.id = f.scope_id
            GROUP BY s.label ORDER BY n DESC""")]
@@ -228,7 +230,12 @@ def describe_corpus() -> str:
 portal (ckns.mof.gov.vn) for the 34 current provinces. {rows:,} rows from {reps:,} reports,
 {y0}-{y1}. {vnd:,} rows carry a VND figure; {blank:,} have no value at all.
 
-FOUR THINGS THAT WILL OTHERWISE GO WRONG
+{'''A SECOND, SEPARATE CORPUS is also here: nsnn_read_national_monthly gives the WHOLE
+COUNTRY by MONTH, from the statistics office. It is not these 34 provinces and not this table -
+it includes the central budget, it is monthly where this is quarterly at finest, and there is no
+join path between them. Never add or compare the two.
+
+''' if nat else ''}FOUR THINGS THAT WILL OTHERWISE GO WRONG
 
 1. NEVER SUM ROWS. The table is a flat projection of hierarchical forms, so a parent and its
    children are both rows. SUM(vnd) over one province-year of form B46 comes to 3.95x-6.98x
@@ -832,3 +839,77 @@ def run_sql(sql: str, max_rows: int = 200) -> str:
                  "NOT a sample: do not compute a ratio or a total over it. Add a WHERE filter, "
                  "GROUP BY, or your own LIMIT/OFFSET. There is no cursor.")
     return body + '\n' + note
+
+
+# --- national monthly, a SEPARATE corpus ------------------------------------------------------
+
+NAT = 'fact_national_monthly'
+#: Whether the national table is present. The warehouse ships with it, but an older nsnn.db.xz
+#: restored from an earlier commit will not have it, and the tool must say so rather than raise.
+def _nat_ready():
+    return bool(con().execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (NAT,)).fetchone())
+
+
+def read_national_monthly(year: int | None = None, side: str | None = None,
+                          basis: str = 'tháng') -> str:
+    """National monthly state budget revenue/spending. A DIFFERENT corpus from everything else.
+
+    This is Vietnam as a whole, by month, from the statistics office - not the 34 provinces'
+    local budgets that every other tool here reads. The two must never be added together or
+    compared as like for like: this includes the central budget, those do not.
+    """
+    if not _nat_ready():
+        return (f"table {NAT} is not in this warehouse. It ships with data/nsnn.db.xz from "
+                "2026-09-18 onward; run dashboard/load_national.py after restoring an older one.")
+    c = con()
+    side = (side or '').strip().lower() or None
+    if side and side not in ('thu', 'chi'):
+        return f"side must be 'thu' or 'chi', not {side!r}"
+    known = [r[0] for r in c.execute(f"SELECT DISTINCT basis FROM {NAT} ORDER BY basis")]
+    if basis not in known:
+        return (f"basis must be one of {known}. They are three DIFFERENT series for the same "
+                "month and must never be added together - see nsnn_describe_corpus.")
+
+    sql = f"""SELECT year, month, side, published_text, unit_source, vnd, source_url
+              FROM {NAT} WHERE basis = ?"""
+    args = [basis]
+    if year:
+        sql += ' AND year = ?'; args.append(year)
+    if side:
+        sql += ' AND side = ?'; args.append(side)
+    rows = c.execute(sql + ' ORDER BY year, month, side', args).fetchall()
+    if not rows:
+        return f"no rows for basis={basis!r}" + (f", year={year}" if year else '')
+
+    # Both sides of one month on one line when neither was filtered out: the net figure is the
+    # whole point for a cash-flow reader, and it only exists where both sides were published.
+    by = {}
+    for r in rows:
+        by.setdefault((r['year'], r['month']), {})[r['side']] = r
+    out = []
+    # cap=None: the provincial implausibility ceiling (1e15) is below real national figures -
+    # the 2026 8-month cumulative is 2.02e15 - so the default would stamp "!scale?" on every
+    # correct cumulative row.
+    m0 = lambda v: money(v, cap=None)
+    for (y, m), s in sorted(by.items()):
+        thu, chi = s.get('thu'), s.get('chi')
+        out.append({'ky': f"{y}-{m:02d}",
+                    'thu_ty': m0(thu['vnd']) if thu else '',
+                    'chi_ty': m0(chi['vnd']) if chi else '',
+                    'thu_tru_chi_ty': m0(thu['vnd'] - chi['vnd']) if thu and chi else '',
+                    'thu_goc': f"{thu['published_text']} {thu['unit_source']}" if thu and
+                               thu['published_text'] else '',
+                    'chi_goc': f"{chi['published_text']} {chi['unit_source']}" if chi and
+                               chi['published_text'] else ''})
+    note = (f"CẢ NƯỚC · {basis} · tỷ đồng. Nguồn: Cục Thống kê (Bộ Tài chính), báo cáo KT-XH "
+            "hàng tháng. Ước tính, không phải quyết toán.\n"
+            "KHÔNG phải cùng phạm vi với các công cụ khác ở đây: đây là cả nước (gồm ngân sách "
+            "trung ương), các công cụ khác là ngân sách địa phương 34 tỉnh. Không cộng chung, "
+            "không so trực tiếp.")
+    if basis == 'tháng':
+        note += ("\nSỐ THU THÁNG KHÔNG CỘNG ĐÚNG thành luỹ kế nguồn công bố: hụt 8-10% ở mọi mốc "
+                 "(8T/2026: cộng 1.847,8 vs luỹ kế 2.023,8). Số tháng là ước công bố ngay trong "
+                 "tháng và không sửa lại; luỹ kế được ước lại và điều chỉnh tăng. Phía chi khớp. "
+                 "Dùng basis='tháng (suy từ luỹ kế)' nếu cần quy mô thay vì thời điểm.")
+    return render(out, note=note)
